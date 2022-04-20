@@ -1,0 +1,39 @@
+﻿@if (Id is not null)
+{
+    <div class="graph-node" style="--x: @(X)px; --y: @(Y)px">
+        @ChildContent
+    </div>
+}
+
+@code {
+    [Parameter]
+    public object? Id { get; set; }
+
+    [Parameter]
+    public double X { get; set; }
+
+    [Parameter]
+    public double Y { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [CascadingParameter]
+    public GraphView? Graph { get; set; }
+
+    public override async Task SetParametersAsync(ParameterView parameters)
+    {
+        var oldId = Id;
+
+        await base.SetParametersAsync(parameters);
+
+        if (Id != oldId)
+        {
+            if (oldId is not null)
+                Graph?.RemoveNode(oldId);
+
+            if (Id is not null)
+                Graph?.AddNode(Id, this);
+        }
+    }
+}

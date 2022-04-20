@@ -1,0 +1,47 @@
+﻿@using Blazor.Extensions
+@using Blazor.Extensions.Canvas.Canvas2D
+
+@code {
+    [Parameter]
+    public object? Id { get; set; }
+
+    [Parameter]
+    public object? Source { get; set; }
+
+    [Parameter]
+    public object? Target { get; set; }
+
+    [CascadingParameter]
+    public GraphView? Graph { get; set; }
+
+    public async Task DrawAsync(Canvas2DContext context)
+    {
+        var source = Graph?.GetNode(Source);
+        var target = Graph?.GetNode(Target);
+
+        if (source is not null && target is not null)
+        {
+            await context.SetStrokeStyleAsync("black");
+            await context.BeginPathAsync();
+            await context.MoveToAsync(source.X, source.Y);
+            await context.LineToAsync(target.X, target.Y);
+            await context.StrokeAsync();
+        }
+    }
+
+    public override async Task SetParametersAsync(ParameterView parameters)
+    {
+        var oldId = Id;
+
+        await base.SetParametersAsync(parameters);
+
+        if (Id != oldId)
+        {
+            if (oldId is not null)
+                Graph?.RemoveEdge(oldId);
+
+            if (Id is not null)
+                Graph?.AddEdge(Id, this);
+        }
+    }
+}

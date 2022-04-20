@@ -1,0 +1,23 @@
+﻿.graph-view {
+    width: 800px;
+    height: 600px;
+    border: 2px solid cornflowerblue;
+    display: grid;
+    place-items: center;
+    user-select: none;
+    overflow: hidden;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.graph-view ::deep > * {
+    grid-row: 1;
+    grid-column: 1;
+}
+
+.zero {
+    width: 0;
+    height: 0;
+    position: relative;
+    transform: translate(var(--x), var(--y));
+}

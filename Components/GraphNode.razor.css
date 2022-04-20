@@ -1,0 +1,15 @@
+﻿.graph-node {
+    width: 50px;
+    height: 50px;
+    background: rgb(156, 212, 228);
+    border-radius: 50px;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    place-items: center;
+
+    transform: translate(-50%, -50%);
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+}

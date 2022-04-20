@@ -1,0 +1,62 @@
+﻿@implements IDisposable
+
+<div class="rxp-canvas">
+    <GraphView>
+        @foreach (var node in state.Graph.Nodes)
+        {
+            <GraphNode Id="node.Key" X="node.Value.Value.X" Y="node.Value.Value.Y">@node.Value.Value.DebugString</GraphNode>
+        }
+
+        @foreach (var edge in state.Graph.Edges)
+        {
+            <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" />
+        }
+    </GraphView>
+
+    <div class="debug-view">
+        <p>Timestamp: @state.Timestamp.ToString("O")</p>
+
+        <p>Nodes:</p>
+        <ul>
+            @foreach (var node in state.Graph.Nodes)
+            {
+                <li>[@node.Key.DebugString] @node.Value.Value.DebugString</li>
+            }
+        </ul>
+
+        <p>Edges:</p>
+        <ul>
+            @foreach (var edge in state.Graph.Edges)
+            {
+                <li>[@edge.Key.DebugString] @edge.Value.Value.DebugString (@edge.Value.Source.DebugString → @edge.Value.Target.DebugString)</li>
+            }
+        </ul>
+    </div>
+</div>
+
+@code {
+    private IDisposable? sessionSubscription;
+    private RxInteractiveSessionState state = RxInteractiveSessionState.Empty;
+
+    [Parameter]
+    public RxInteractiveSession? Session { get; set; }
+
+    public override async Task SetParametersAsync(ParameterView parameters)
+    {
+        var oldSession = Session;
+
+        await base.SetParametersAsync(parameters);
+
+        if (Session != oldSession)
+        {
+            sessionSubscription?.Dispose();
+            sessionSubscription = Session?.Subscribe(newState =>
+            {
+                state = newState;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+
+    public void Dispose() => sessionSubscription?.Dispose();
+}

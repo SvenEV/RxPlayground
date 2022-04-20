@@ -1,0 +1,9 @@
+﻿.rxp-canvas {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+}
+
+.rxp-canvas > .debug-view {
+    border: 2px solid yellow;
+}

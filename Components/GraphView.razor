@@ -1,0 +1,103 @@
+﻿@using Blazor.Extensions
+@using Blazor.Extensions.Canvas.Canvas2D
+@inject DomHelper DomHelper
+
+<div class="graph-view" @onpointerdown="OnPointerDown" @onpointerup="OnPointerUp" @onpointermove="OnPointerMove" @ref="element">
+    <BECanvas @ref="canvas" Width="800" Height="600" />
+    <div class="zero" style="--x: @(translateX)px; --y: @(translateY)px" @onpointerdown:stopPropagation>
+        <CascadingValue Value="this">
+            @ChildContent
+        </CascadingValue>
+    </div>
+</div>
+
+@code {
+    private double translateX;
+    private double translateY;
+    private DragOperation? dragOperation;
+    private ElementReference element;
+
+    private Dictionary<object, GraphNode> nodes = new();
+    private Dictionary<object, GraphEdge> edges = new();
+
+    private BECanvasComponent? canvas;
+    private Canvas2DContext? canvasContext;
+
+    private record DragOperation(
+        double OriginalTranslateX, double OriginalTranslateY,
+        double StartX, double StartY);
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        canvasContext = await canvas!.CreateCanvas2DAsync();
+        await canvasContext.BeginBatchAsync();
+        await canvasContext.SetTransformAsync(1, 0, 0, 1, 0, 0);
+        await canvasContext.ClearRectAsync(0, 0, canvas!.Width, canvas.Height);
+        await canvasContext.TranslateAsync(400 + translateX, 300 + translateY);
+
+        foreach (var edge in edges.Values)
+        {
+            await edge.DrawAsync(canvasContext);
+        }
+        await canvasContext.EndBatchAsync();
+    }
+
+    private async Task OnPointerDown(PointerEventArgs args)
+    {
+        if (args.IsPrimary)
+        {
+            dragOperation = new(translateX, translateY, args.OffsetX, args.OffsetY);
+            await DomHelper.SetPointerCaptureAsync(element, args.PointerId);
+        }
+    }
+
+    private async Task OnPointerUp(PointerEventArgs args)
+    {
+        if (args.IsPrimary && dragOperation is not null)
+        {
+            translateX = dragOperation.OriginalTranslateX + (args.OffsetX - dragOperation.StartX);
+            translateY = dragOperation.OriginalTranslateY + (args.OffsetY - dragOperation.StartY);
+            dragOperation = null;
+            await DomHelper.ReleasePointerCaptureAsync(element, args.PointerId);
+        }
+    }
+
+    private void OnPointerMove(PointerEventArgs args)
+    {
+        if (args.IsPrimary && dragOperation is not null)
+        {
+            translateX = dragOperation.OriginalTranslateX + (args.OffsetX - dragOperation.StartX);
+            translateY = dragOperation.OriginalTranslateY + (args.OffsetY - dragOperation.StartY);
+        }
+    }
+
+    public void AddNode(object id, GraphNode node)
+    {
+        nodes.Add(id, node);
+    }
+
+    public void RemoveNode(object id)
+    {
+        nodes.Remove(id);
+    }
+
+    public GraphNode? GetNode(object? id)
+    {
+        return id is not null && nodes.TryGetValue(id, out var node) ? node : null;
+    }
+
+    public void AddEdge(object id, GraphEdge edge)
+    {
+        edges.Add(id, edge);
+    }
+
+    public void RemoveEdge(object id)
+    {
+        edges.Remove(id);
+    }
+}
