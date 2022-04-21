@@ -4,12 +4,32 @@
     <GraphView>
         @foreach (var node in state.Graph.Nodes)
         {
-            <GraphNode Id="node.Key" X="node.Value.Value.X" Y="node.Value.Value.Y">@node.Value.Value.DebugString</GraphNode>
+            <GraphNode Id="node.Key" Position="node.Value.Value.Position">@node.Value.Value</GraphNode>
         }
 
         @foreach (var edge in state.Graph.Edges)
         {
-            <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" />
+            <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target">
+                @foreach (var emission in edge.Value.Value.Emissions)
+                {
+                    <GraphEdgeToken Position="(float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds)">
+                        @switch (emission.Emission)
+                        {
+                            case ObservableEmission.Next next:
+                                @(next.Value?.ToString() ?? "null")
+                                break;
+
+                            case ObservableEmission.Error error:
+                                @:💥
+                                break;
+
+                            case ObservableEmission.Completed:
+                                @:🔷
+                                break;
+                        }
+                    </GraphEdgeToken>
+                }
+            </GraphEdge>
         }
     </GraphView>
 
@@ -20,7 +40,7 @@
         <ul>
             @foreach (var node in state.Graph.Nodes)
             {
-                <li>[@node.Key.DebugString] @node.Value.Value.DebugString</li>
+                <li>[@node.Key] @node.Value.Value</li>
             }
         </ul>
 
@@ -28,7 +48,15 @@
         <ul>
             @foreach (var edge in state.Graph.Edges)
             {
-                <li>[@edge.Key.DebugString] @edge.Value.Value.DebugString (@edge.Value.Source.DebugString → @edge.Value.Target.DebugString)</li>
+                <li>
+                    [@edge.Key] @edge.Value.Value (@edge.Value.Source → @edge.Value.Target)
+                    <ul>
+                        @foreach (var emission in edge.Value.Value.Emissions)
+                        {
+                            <li>@emission.Timestamp.ToString("O") - @((float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds))</li>
+                        }
+                    </ul>
+                </li>
             }
         </ul>
     </div>

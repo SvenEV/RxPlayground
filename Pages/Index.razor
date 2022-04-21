@@ -25,16 +25,27 @@
 
         var subject = new Subject<string>();
 
-        var subjectObs = subject.Inspect(session);
-        var timerObs = Observable.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)).Inspect(session);
+        var timer = Observable.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
 
         var combined = Observable
-            .CombineLatest(subjectObs, timerObs, (str, number) => $"{str}{number}")
+            .CombineLatest(
+                subject.Inspect(session),
+                timer.Inspect(session),
+                (str, number) => $"{str}{number}")
             .Inspect(session)
-            .Select(str => str + " :)")
-            .Inspect(session);
+            .Select(str => str + " :)");
 
-        combined.Subscribe(session);
+        subject
+            .Inspect(session)
+            .Subscribe(session);
+
+        combined
+            .Inspect(session)
+            .Subscribe(session);
+
+        combined
+            .Inspect(session)
+            .Subscribe(session);
 
         Task.Run(async () =>
         {

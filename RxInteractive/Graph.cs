@@ -23,9 +23,9 @@ namespace RxPlayground.RxInteractive
             Edges: ImmutableDictionary<EKey, Edge<E, VKey>>.Empty
         );
 
-        public Graph<V, VKey, E, EKey> AddNode(VKey key, V value) =>
+        public Graph<V, VKey, E, EKey> TryAddNode(VKey key, V value) =>
             Nodes.ContainsKey(key)
-                ? throw new ArgumentException($"A node with key '{key}' already exists")
+                ? this
                 : this with
                 {
                     Nodes = Nodes.Add(key, new Node<V, EKey>(

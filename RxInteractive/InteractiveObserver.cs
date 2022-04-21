@@ -10,7 +10,7 @@ namespace RxPlayground.RxInteractive
 
     public interface IInteractiveObserver
     {
-        ObserverId Id { get; }
+        DataFlowEdgeId Id { get; }
 
         IObservable<RxInteractiveEvent> Events { get; }
     }
@@ -21,11 +21,11 @@ namespace RxPlayground.RxInteractive
         private readonly IObserver<T>? underlyingObserver;
         private readonly ITimeProvider timeProvider;
 
-        public ObserverId Id { get; }
+        public DataFlowEdgeId Id { get; }
 
         public IObservable<RxInteractiveEvent> Events => eventsSubject;
 
-        public InteractiveObserver(ObserverId id, ITimeProvider timeProvider, IObserver<T>? underlyingObserver = null)
+        public InteractiveObserver(DataFlowEdgeId id, ITimeProvider timeProvider, IObserver<T>? underlyingObserver = null)
         {
             Id = id;
             this.timeProvider = timeProvider;
@@ -38,7 +38,7 @@ namespace RxPlayground.RxInteractive
 
             eventsSubject.OnNext(new RxInteractiveEvent.ValueEmitted(
                 Timestamp: timeProvider.GetTimestamp(),
-                ObserverId: Id,
+                EdgeId: Id,
                 Emission: new ObservableEmission.Completed()));
         }
 
@@ -48,7 +48,7 @@ namespace RxPlayground.RxInteractive
 
             eventsSubject.OnNext(new RxInteractiveEvent.ValueEmitted(
                 Timestamp: timeProvider.GetTimestamp(),
-                ObserverId: Id,
+                EdgeId: Id,
                 Emission: new ObservableEmission.Error(error)));
         }
 
@@ -58,7 +58,7 @@ namespace RxPlayground.RxInteractive
 
             eventsSubject.OnNext(new RxInteractiveEvent.ValueEmitted(
                 Timestamp: timeProvider.GetTimestamp(),
-                ObserverId: Id,
+                EdgeId: Id,
                 Emission: new ObservableEmission.Next(value!)));
         }
     }
