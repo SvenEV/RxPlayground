@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -9,54 +10,32 @@ namespace RxPlayground.RxInteractive
     public interface IInteractiveObservable : IInteractiveNode
     {
         object UnderlyingObservable { get; }
-        IInteractiveNode? Child { get; }
-        void SetChild(IInteractiveNode child);
+        IReadOnlyList<IInteractiveObservablePort> Downstreams { get; }
+        IInteractiveObservablePort AddDownstream();
     }
 
-    public interface IInteractiveObservable<T> : IInteractiveObservable, IObservable<T>
+    public interface IInteractiveObservable<T> : IInteractiveObservable
     {
         new IObservable<T> UnderlyingObservable { get; }
+        new IInteractiveObservablePort<T> AddDownstream();
     }
 
-    public static class InteractiveObservableExtensions
+    public static class ObservableExtensions
     {
-        public static IInteractiveObservable<T> Inspect<T>(this IObservable<T> source, RxInteractiveSession session)
-        {
-            var wrappedObservable = new InteractiveObservable<T>(source, session.TimeProvider);
-
-            session.OnNext(new RxInteractiveEvent.ObservableCreated(
-                Timestamp: session.TimeProvider.GetTimestamp(),
-                Observable: wrappedObservable));
-
-            return wrappedObservable;
-        }
-
-        public static IDisposable Subscribe<T>(this IInteractiveObservable<T> source, RxInteractiveSession session)
-        {
-            var subscription = new InteractiveSubscription<T>(source, session.TimeProvider);
-
-            session.OnNext(new RxInteractiveEvent.SubscriberCreated(
-                Timestamp: session.TimeProvider.GetTimestamp(),
-                Subscriber: subscription));
-
-            subscription.Subscribe();
-            return subscription;
-        }
+        public static IObservable<Timestamped<T>> Timestamped<T>(this IObservable<T> source, ITimeProvider timeProvider) =>
+            source.Select(value => System.Reactive.Timestamped.Create(value, timeProvider.GetTimestamp()));
     }
 
     public class InteractiveObservable<T> : IInteractiveObservable<T>
     {
-        private readonly BehaviorSubject<ImmutableList<InteractiveObserver<T>>> observersSubject =
-            new(ImmutableList<InteractiveObserver<T>>.Empty);
-
-        private readonly ITimeProvider timeProvider;
-        private readonly Subject<RxInteractiveEvent> eventsSubject = new();
+        private readonly Subject<IInteractiveObservablePort<T>> portsSubject = new();
+        private readonly List<IInteractiveObservablePort> downstreams = new();
 
         public DataFlowNodeId AggregateNodeId { get; }
 
-        public ImmutableDictionary<string, IInteractiveObservable> Parents { get; }
+        public ImmutableList<IInteractiveObservablePort> Upstreams { get; }
 
-        public IInteractiveNode? Child { get; private set; }
+        public IReadOnlyList<IInteractiveObservablePort> Downstreams => downstreams;
 
         public IObservable<RxInteractiveEvent> Events { get; }
 
@@ -64,24 +43,69 @@ namespace RxPlayground.RxInteractive
 
         object IInteractiveObservable.UnderlyingObservable => UnderlyingObservable;
 
-        public InteractiveObservable(IObservable<T> source)
+        public InteractiveObservable(IObservable<T> source, ImmutableList<IInteractiveObservablePort> upstreams)
         {
             UnderlyingObservable = source;
+
+            AggregateNodeId = new DataFlowNodeId(this);
+
+            Upstreams = upstreams;
+
+            foreach (var up in upstreams)
+                up.SetTarget(this);
+
+            Events = portsSubject
+                .Scan(ImmutableList<IInteractiveObservablePort<T>>.Empty, (list, newPort) => list.Add(newPort))
+                .Select(list => list.Select(port => port.Events).Merge())
+                .Switch()
+                .Publish()
+                .AutoConnect(0);
         }
 
-        [Obsolete]
-        public InteractiveObservable(IObservable<T> source, ITimeProvider timeProvider)
+        public IInteractiveObservablePort<T> AddDownstream()
         {
-            this.timeProvider = timeProvider;
+            var newPort = new InteractiveObservablePort<T>(this);
+            downstreams.Add(newPort);
+            portsSubject.OnNext(newPort);
+            return newPort;
+        }
 
-            UnderlyingObservable = source;
+        IInteractiveObservablePort IInteractiveObservable.AddDownstream() => AddDownstream();
 
-            AggregateNodeId = new DataFlowNodeId(UnderlyingObservable);
+        public override string ToString() => UnderlyingObservable.GetType().Name;
+    }
 
-            Parents = Introspection.GetParentsThroughReflection(source);
 
-            foreach (var parent in Parents)
-                parent.Value.SetChild(this);
+    public interface IInteractiveObservablePort
+    {
+        IInteractiveObservable Owner { get; }
+        IInteractiveNode? Target { get; }
+        IObservable<RxInteractiveEvent> Events { get; }
+
+        void SetTarget(IInteractiveNode target);
+    }
+
+    public interface IInteractiveObservablePort<T> : IInteractiveObservablePort, IConnectableObservable<T>
+    {
+        new IInteractiveObservable<T> Owner { get; }
+    }
+
+    public class InteractiveObservablePort<T> : IInteractiveObservablePort<T>
+    {
+        private readonly BehaviorSubject<ImmutableList<InteractiveObserver<T>>> observersSubject =
+            new(ImmutableList<InteractiveObserver<T>>.Empty);
+
+        private readonly Subject<RxInteractiveEvent> eventsSubject = new();
+
+        public IInteractiveObservable<T> Owner { get; }
+        public IInteractiveNode? Target { get; private set; }
+        public IObservable<RxInteractiveEvent> Events { get; }
+
+        IInteractiveObservable IInteractiveObservablePort.Owner => Owner;
+
+        public InteractiveObservablePort(IInteractiveObservable<T> owner)
+        {
+            Owner = owner;
 
             Events = eventsSubject
                 .Merge(observersSubject
@@ -90,30 +114,21 @@ namespace RxPlayground.RxInteractive
                 );
         }
 
-        public void SetChild(IInteractiveNode child)
-        {
-            if (Child is not null)
-                throw new InvalidOperationException($"Interactive observable already has a child. It cannot have multiple children.");
-
-            Child = child;
-        }
-
         public IDisposable Subscribe(IObserver<T> observer)
         {
-            if (Child is null)
-                throw new InvalidOperationException("Inconsistent state: Received Subscribe() call from downstream observable, but Child is null");
+            if (Target is null)
+                throw new InvalidOperationException("Inconsistent state: Received Subscribe() call from downstream observable, but Target is null");
 
             lock (observersSubject)
             {
-                var edgeId = new DataFlowEdgeId(AggregateNodeId, Child.AggregateNodeId, observersSubject.Value.Count);
-                var wrappedObserver = new InteractiveObserver<T>(edgeId, timeProvider, observer);
+                var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(Owner.AggregateNodeId, Target.AggregateNodeId, observersSubject.Value.Count);
+                var wrappedObserver = new InteractiveObserver<T>(edgeId, observer);
 
                 eventsSubject.OnNext(new RxInteractiveEvent.Subscribed(
-                    Timestamp: timeProvider.GetTimestamp(),
                     EdgeId: edgeId,
                     Observer: wrappedObserver));
 
-                var subscription = UnderlyingObservable.Subscribe(wrappedObserver);
+                var subscription = Owner.UnderlyingObservable.Subscribe(wrappedObserver);
 
                 observersSubject.OnNext(observersSubject.Value.Add(wrappedObserver));
 
@@ -122,7 +137,6 @@ namespace RxPlayground.RxInteractive
                     subscription.Dispose();
 
                     eventsSubject.OnNext(new RxInteractiveEvent.Unsubscribed(
-                        Timestamp: timeProvider.GetTimestamp(),
                         EdgeId: edgeId));
 
                     lock (observersSubject)
@@ -131,15 +145,20 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        private static ImmutableDictionary<string, IInteractiveObservable> GetParentsThroughReflection(IObservable<T> observable)
+        public void SetTarget(IInteractiveNode target)
         {
-            var fields = observable.GetType()
-                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic);
+            if (Target is not null)
+                throw new InvalidOperationException("Cannot set target twice");
 
-            return fields
-                .Select(field => new { FieldName = field.Name, Value = field.GetValue(observable) })
-                .Where(o => o.Value is IInteractiveObservable)
-                .ToImmutableDictionary(o => o.FieldName, o => (IInteractiveObservable)o.Value!);
+            Target = target;
+        }
+
+        public IDisposable Connect()
+        {
+            if (Owner.UnderlyingObservable is IConnectableObservable<T> connectableObservable)
+                return connectableObservable.Connect();
+
+            return Disposable.Create(() => { });
         }
     }
 }

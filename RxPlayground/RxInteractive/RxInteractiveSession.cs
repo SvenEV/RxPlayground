@@ -1,5 +1,7 @@
-﻿using System.Collections.Immutable;
+﻿using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Numerics;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
@@ -11,12 +13,12 @@ using RxGraph = RxPlayground.RxInteractive.Graph<
 
 namespace RxPlayground.RxInteractive
 {
-    public class RxInteractiveSession : IObservable<RxInteractiveSessionState>
+    public class RxInteractiveSession : IIntrospectionCache, IObservable<RxInteractiveSessionState>
     {
         public static readonly TimeSpan TimelineLength = TimeSpan.FromSeconds(3);
         public static readonly TimeSpan FrameLength = TimeSpan.FromSeconds(.0167);
 
-        private readonly Subject<IObservable<RxInteractiveEvent>> eventSourceAdditions = new();
+        private readonly Subject<IInteractiveNode> eventSourceAdditions = new();
         private readonly BehaviorSubject<RxInteractiveSessionState> state;
         private readonly object stateLock = new();
         private readonly ILogger logger;
@@ -29,6 +31,7 @@ namespace RxPlayground.RxInteractive
             state = new(
                 new RxInteractiveSessionState(
                     Timestamp: timeProvider.GetTimestamp(),
+                    InteractiveObservables: ImmutableDictionary<object, IInteractiveObservable>.Empty,
                     Graph: RxGraph.Empty
                 )
             );
@@ -37,24 +40,25 @@ namespace RxPlayground.RxInteractive
             this.logger = logger;
 
             eventSubscription = eventSourceAdditions
-                .Scan(ImmutableList<IObservable<RxInteractiveEvent>>.Empty, (eventSources, newEventSource) => eventSources.Add(newEventSource))
-                .Select(eventSources => eventSources.Merge())
+                .Scan(ImmutableHashSet<IInteractiveNode>.Empty, (eventSources, newEventSource) => eventSources.Add(newEventSource))
+                .Select(eventSources => eventSources.Select(source => source.Events.Timestamped(timeProvider)).Merge())
                 .Switch()
                 .Buffer(FrameLength)
                 .Subscribe(HandleEventBatch);
         }
 
-        private void AddEventSource(IObservable<RxInteractiveEvent> eventSource)
+        private void AddEventSourcesFromNode(IInteractiveNode node)
         {
-            logger.LogInformation("Add event source");
-            eventSourceAdditions.OnNext(eventSource);
+            eventSourceAdditions.OnNext(node);
+            foreach (var upstreamNode in node.Upstreams)
+                AddEventSourcesFromNode(upstreamNode.Owner);
         }
 
-        private void HandleEventBatch(IList<RxInteractiveEvent> events)
+        private void HandleEventBatch(IList<Timestamped<RxInteractiveEvent>> events)
         {
             if (events.Count == 0)
             {
-                lock(stateLock)
+                lock (stateLock)
                 {
                     state.OnNext(state.Value with { Timestamp = TimeProvider.GetTimestamp() });
                 }
@@ -66,77 +70,74 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        private void HandleEvent(RxInteractiveEvent ev)
+        private void HandleEvent(Timestamped<RxInteractiveEvent> ev)
         {
-            logger.LogInformation("Handle event '{EventType}'", ev.GetType().Name);
+            logger.LogInformation("Handle event '{EventType}'", ev.Value.GetType().Name);
 
             lock (stateLock)
             {
-                state.OnNext(ev switch
+                state.OnNext(ev.Value switch
                 {
-                    RxInteractiveEvent.ObservableCreated e => HandleObservableCreated(state.Value, e),
-                    RxInteractiveEvent.SubscriberCreated e => HandleSubscriberCreated(state.Value, e),
-                    RxInteractiveEvent.Subscribed e => HandleSubscribed(state.Value, e),
-                    RxInteractiveEvent.ValueEmitted e => HandleValueEmitted(state.Value, e),
+                    RxInteractiveEvent.ObservableCreated e => HandleObservableCreated(state.Value, ev.Timestamp, e),
+                    RxInteractiveEvent.SubscriberCreated e => HandleSubscriberCreated(state.Value, ev.Timestamp, e),
+                    RxInteractiveEvent.Subscribed e => HandleSubscribed(state.Value, ev.Timestamp, e),
+                    RxInteractiveEvent.ValueEmitted e => HandleValueEmitted(state.Value, ev.Timestamp, e),
                     _ => throw new NotImplementedException($"{nameof(RxInteractiveEvent)}.{ev.GetType().Name}")
                 });
-
-                if (ev is RxInteractiveEvent.ObservableCreated ev1)
-                    AddEventSource(ev1.Observable.Events);
-
-                if (ev is RxInteractiveEvent.SubscriberCreated ev2)
-                    AddEventSource(ev2.Subscriber.Events);
             }
 
-            static RxInteractiveSessionState HandleObservableCreated(RxInteractiveSessionState state, RxInteractiveEvent.ObservableCreated ev) => state with
+            if (ev.Value is RxInteractiveEvent.ObservableCreated ev1)
+                AddEventSourcesFromNode(ev1.Observable);
+
+            if (ev.Value is RxInteractiveEvent.SubscriberCreated ev2)
             {
-                Timestamp = ev.Timestamp,
-                Graph = ev.Observable.Parents.Aggregate(
+                AddEventSourcesFromNode(ev2.Subscriber);
+                ev2.Subscriber.Subscribe();
+            }
+
+            static RxInteractiveSessionState HandleObservableCreated(RxInteractiveSessionState state, DateTimeOffset timestamp, RxInteractiveEvent.ObservableCreated ev) => state with
+            {
+                Timestamp = timestamp,
+                Graph = ev.Observable.Upstreams.Aggregate(
                     seed: state.Graph
-                        .TryAddNode(
-                            ev.Observable.AggregateNodeId,
-                            new DataFlowNode(ev.Observable.UnderlyingObservable.GetType().Name, Vector2.Zero)
-                        )
+                        .AddNodeAndUpstream(ev.Observable)
                         .Layout(),
                     func: (graph, parent) => graph
                 )
             };
 
-            static RxInteractiveSessionState HandleSubscriberCreated(RxInteractiveSessionState state, RxInteractiveEvent.SubscriberCreated ev) => state with
+            static RxInteractiveSessionState HandleSubscriberCreated(RxInteractiveSessionState state, DateTimeOffset timestamp, RxInteractiveEvent.SubscriberCreated ev) => state with
             {
-                Timestamp = ev.Timestamp,
+                Timestamp = timestamp,
                 Graph = state.Graph
-                    .TryAddNode(
-                        new DataFlowNodeId(ev.Subscriber),
-                        new DataFlowNode("Subscription", Vector2.Zero)
-                    )
+                    .AddNodeAndUpstream(ev.Subscriber)
                     .Layout()
             };
 
-            static RxInteractiveSessionState HandleSubscribed(RxInteractiveSessionState state, RxInteractiveEvent.Subscribed ev) => state with
+            static RxInteractiveSessionState HandleSubscribed(RxInteractiveSessionState state, DateTimeOffset timestamp, RxInteractiveEvent.Subscribed ev) => state with
             {
-                Timestamp = ev.Timestamp,
+                Timestamp = timestamp,
                 Graph = state.Graph
                     .AddEdge(
                         key: ev.EdgeId,
-                        value: new DataFlowEdge(ImmutableList<ObservableEmissionWithTimestamp>.Empty),
+                        value: new DataFlowEdge.SubscriptionEdge(ImmutableList<ObservableEmissionWithTimestamp>.Empty),
                         source: ev.EdgeId.SourceId,
                         target: ev.EdgeId.TargetId
                     )
                     .Layout()
             };
 
-            static RxInteractiveSessionState HandleValueEmitted(RxInteractiveSessionState state, RxInteractiveEvent.ValueEmitted ev) => state with
+            static RxInteractiveSessionState HandleValueEmitted(RxInteractiveSessionState state, DateTimeOffset timestamp, RxInteractiveEvent.ValueEmitted ev) => state with
             {
-                Timestamp = ev.Timestamp,
+                Timestamp = timestamp,
                 Graph = state.Graph
                     .UpdateEdge(
                         ev.EdgeId,
-                        edge => AddEmission(edge, ev.Emission, ev.Timestamp)
+                        edge => AddEmission((DataFlowEdge.SubscriptionEdge)edge, ev.Emission, timestamp)
                     )
             };
 
-            static DataFlowEdge AddEmission(DataFlowEdge edge, ObservableEmission emission, DateTimeOffset timestamp)
+            static DataFlowEdge.SubscriptionEdge AddEmission(DataFlowEdge.SubscriptionEdge edge, ObservableEmission emission, DateTimeOffset timestamp)
             {
                 var timeLimit = timestamp - TimelineLength;
 
@@ -150,61 +151,144 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        public void OnCompleted() => throw new NotImplementedException();
+        public void DeclareSubscription<T>(IObservable<T> observable)
+        {
+            var subscription = new InteractiveSubscription<T>(observable.Inspect(this));
 
-        public void OnError(Exception error) => throw new NotImplementedException();
+            HandleEvent(new Timestamped<RxInteractiveEvent>(
+                new RxInteractiveEvent.SubscriberCreated(subscription),
+                TimeProvider.GetTimestamp()
+            ));
+        }
 
-        public void OnNext(RxInteractiveEvent value) => HandleEvent(value);
+        IInteractiveObservable IIntrospectionCache.GetOrAdd(object observable, Func<IInteractiveObservable> factoryFunc)
+        {
+            lock (stateLock)
+            {
+                if (state.Value.InteractiveObservables.TryGetValue(observable, out var interactiveObservable))
+                    return interactiveObservable;
+
+                var newInteractiveObservable = factoryFunc();
+
+                state.OnNext(state.Value with
+                {
+                    Timestamp = TimeProvider.GetTimestamp(),
+                    InteractiveObservables = state.Value.InteractiveObservables.Add(observable, newInteractiveObservable)
+                });
+
+                return newInteractiveObservable;
+            }
+        }
 
         public IDisposable Subscribe(IObserver<RxInteractiveSessionState> observer) => state.Subscribe(observer);
     }
 
     public record RxInteractiveSessionState(
         DateTimeOffset Timestamp,
+        ImmutableDictionary<object, IInteractiveObservable> InteractiveObservables,
         RxGraph Graph)
     {
         public static readonly RxInteractiveSessionState Empty = new(
             Timestamp: DateTimeOffset.MinValue,
+            InteractiveObservables: ImmutableDictionary<object, IInteractiveObservable>.Empty,
             Graph: RxGraph.Empty);
     }
 
-    public static class RxGraphExtension
+    public static class RxGraphExtensions
     {
         public static RxGraph Layout(this RxGraph graph)
         {
-            //return graph; // TODO
+            var random = new Random();
 
-            var roots = graph.Nodes.Where(n => n.Value.InEdges.IsEmpty).ToList();
+            var (dict, _) = Enumerable.Range(0, 100)
+                .Select(_ => ComputeLayout())
+                .MinBy(result => result.Item2);
 
-            var dict = new Dictionary<DataFlowNodeId, Vector2>();
-
-            Iterate(roots, Vector2.Zero);
-
-            Vector2 Iterate(IEnumerable<KeyValuePair<DataFlowNodeId, Node<DataFlowNode, DataFlowEdgeId>>> nodes, Vector2 p)
+            (Dictionary<DataFlowNodeId, Vector2>, int) ComputeLayout()
             {
-                foreach (var node in nodes)
+                var roots = graph.Nodes.Where(n => n.Value.InEdges.IsEmpty).ToList();
+                var dict = new Dictionary<DataFlowNodeId, Vector2>();
+
+                Iterate(roots, Vector2.Zero, ImmutableHashSet<DataFlowNodeId>.Empty);
+
+                Vector2 Iterate(IEnumerable<KeyValuePair<DataFlowNodeId, Node<DataFlowNode, DataFlowEdgeId>>> nodes, Vector2 p, ImmutableHashSet<DataFlowNodeId> path)
                 {
-                    dict[node.Key] = p;
+                    foreach (var node in nodes.OrderBy(_ => random.Next()))
+                    {
+                        //if (dict.ContainsKey(node.Key))
+                        //    throw new InvalidOperationException("Node visited twice!");
+                        
+                        dict[node.Key] = p;
 
-                    var children = node.Value.OutEdges
-                        .Select(edgeId => new KeyValuePair<DataFlowNodeId, Node<DataFlowNode, DataFlowEdgeId>>(graph.Edges[edgeId].Target, graph.Nodes[graph.Edges[edgeId].Target]))
-                        .ToList();
+                        var children = node.Value.OutEdges
+                            .Select(edgeId => new KeyValuePair<DataFlowNodeId, Node<DataFlowNode, DataFlowEdgeId>>(graph.Edges[edgeId].Target, graph.Nodes[graph.Edges[edgeId].Target]))
+                            .Distinct()
+                            .ToList();
 
-                    var pAfter = Iterate(children, p + Vector2.UnitY);
-                    p = new(pAfter.X + 1, p.Y);
+                        var pAfter = Iterate(children, p + Vector2.UnitY, path.Add(node.Key));
+                        p = new(pAfter.X + 1, p.Y);
+                    }
+
+                    return p;
                 }
 
-                return p;
+                // https://stackoverflow.com/a/9997374
+                bool ccw(Vector2 a, Vector2 b, Vector2 c) =>
+                    (c.Y - a.Y) * (b.X - a.X) > (b.Y - a.Y) * (c.X - a.X);
+                bool intersect(Vector2 A, Vector2 B, Vector2 C, Vector2 D) =>
+                    ccw(A, C, D) != ccw(B, C, D) && ccw(A, B, C) != ccw(A, B, D);
+
+                var numEdgeCrossings = (
+                    from a in graph.Edges.Values
+                    from b in graph.Edges.Values
+                    select intersect(dict[a.Source], dict[a.Target], dict[b.Source], dict[b.Target]) ? 1 : 0).Sum();
+
+                return (dict, numEdgeCrossings);
             }
 
             return dict.Aggregate(graph, (g, pos) => g.UpdateNode(pos.Key, n => n with { Position = pos.Value * 100 }));
         }
+
+        public static RxGraph AddNodeAndUpstream(this RxGraph graph, IInteractiveNode node)
+        {
+            var result = AddRecursively(graph, node);
+            return result.NewGraph;
+
+            static (RxGraph NewGraph, bool NewNodeCreated) AddRecursively(RxGraph graph, IInteractiveNode node)
+            {
+                var newNodeCreated = !graph.Nodes.ContainsKey(node.AggregateNodeId);
+                graph = graph.TryAddNode(node.AggregateNodeId, new DataFlowNode(node.ToString()!, Vector2.Zero));
+
+                foreach (var upstreamNode in node.Upstreams)
+                {
+                    var result = AddRecursively(graph, upstreamNode.Owner);
+                    var edgeId = new DataFlowEdgeId.StaticEdgeId(upstreamNode.Owner.AggregateNodeId, node.AggregateNodeId);
+
+                    graph = newNodeCreated
+                        ? result.NewGraph.AddEdge(
+                            edgeId,
+                            new DataFlowEdge.StaticEdge(),
+                            edgeId.SourceId,
+                            edgeId.TargetId)
+                        : result.NewGraph;
+                }
+
+                return (graph, newNodeCreated);
+            }
+        }
     }
 
-    public record DataFlowEdge(
-        ImmutableList<ObservableEmissionWithTimestamp> Emissions)
+    public abstract record DataFlowEdge
     {
-        public override string ToString() => $"{Emissions.Count} emissions";
+        public record StaticEdge() : DataFlowEdge
+        {
+            public override string ToString() => "Static";
+        }
+
+        public record SubscriptionEdge(ImmutableList<ObservableEmissionWithTimestamp> Emissions) : DataFlowEdge
+        {
+            public override string ToString() => $"{Emissions.Count} emissions";
+        }
     }
 
     public record ObservableEmissionWithTimestamp(
@@ -216,9 +300,9 @@ namespace RxPlayground.RxInteractive
         public override string ToString() => DisplayName;
     }
 
-    public record DataFlowNodeId(object Identity)
+    public record DataFlowNodeId(IInteractiveNode Identity)
     {
-        public override string ToString() => $"Node({Identity.GetType().Name}-{Identity.GetHashCode()})";
+        public override string ToString() => $"Node({Identity}-{Identity.GetHashCode()})";
     }
 
     /// <summary>
@@ -226,42 +310,45 @@ namespace RxPlayground.RxInteractive
     /// Otherwise, ObserverId is not unique (think of multiple edges between an ObservableNode and an ObserverNode).
     /// Multiple edges between two ObservableNodes are possible because each subscription uses a separate InteractiveObserver.
     /// </summary>
-    public record DataFlowEdgeId(
-        DataFlowNodeId SourceId,
-        DataFlowNodeId TargetId,
-        int SequenceNumber)
+    public abstract record DataFlowEdgeId
     {
-        public override string ToString() => $"Edge({SourceId} → {TargetId} | {SequenceNumber})";
+        public record StaticEdgeId(
+            DataFlowNodeId SourceId,
+            DataFlowNodeId TargetId) : DataFlowEdgeId
+        {
+            public override string ToString() => $"StaticEdge({SourceId} → {TargetId})";
+        }
+
+        public record SubscriptionEdgeId(
+            DataFlowNodeId SourceId,
+            DataFlowNodeId TargetId,
+            int SequenceNumber) : DataFlowEdgeId
+        {
+            public override string ToString() => $"SubscriptionEdge({SourceId} → {TargetId} | {SequenceNumber})";
+        }
     }
 
 
     public abstract record RxInteractiveEvent
     {
-        public DateTimeOffset Timestamp { get; }
-
-        private RxInteractiveEvent(DateTimeOffset Timestamp) => this.Timestamp = Timestamp;
+        private RxInteractiveEvent() { }
 
         public record ObservableCreated(
-            DateTimeOffset Timestamp,
-            IInteractiveObservable Observable) : RxInteractiveEvent(Timestamp);
+            IInteractiveObservable Observable) : RxInteractiveEvent;
 
         public record SubscriberCreated(
-            DateTimeOffset Timestamp,
-            IInteractiveSubscription Subscriber) : RxInteractiveEvent(Timestamp);
+            IInteractiveSubscription Subscriber) : RxInteractiveEvent;
 
         public record Subscribed(
-            DateTimeOffset Timestamp,
-            DataFlowEdgeId EdgeId,
-            IInteractiveObserver Observer) : RxInteractiveEvent(Timestamp);
+            DataFlowEdgeId.SubscriptionEdgeId EdgeId,
+            IInteractiveObserver Observer) : RxInteractiveEvent;
 
         public record Unsubscribed(
-            DateTimeOffset Timestamp,
-            DataFlowEdgeId EdgeId) : RxInteractiveEvent(Timestamp);
+            DataFlowEdgeId.SubscriptionEdgeId EdgeId) : RxInteractiveEvent;
 
         public record ValueEmitted(
-            DateTimeOffset Timestamp,
             DataFlowEdgeId EdgeId,
-            ObservableEmission Emission) : RxInteractiveEvent(Timestamp);
+            ObservableEmission Emission) : RxInteractiveEvent;
     }
 
     public abstract record ObservableEmission

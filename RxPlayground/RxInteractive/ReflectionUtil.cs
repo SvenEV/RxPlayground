@@ -1,4 +1,6 @@
-﻿using System.Collections.Immutable;
+﻿using System.Collections;
+using System.Collections.Immutable;
+using System.Reflection;
 
 namespace RxPlayground.RxInteractive
 {
@@ -44,11 +46,21 @@ namespace RxPlayground.RxInteractive
             //}
         }
 
+        public static IEnumerable<FieldInfo> GetAllPrivateFields(this Type type)
+        {
+            foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic))
+                yield return field;
+
+            if (type.BaseType is Type baseType)
+                foreach (var field in baseType.GetAllPrivateFields())
+                    yield return field;
+        }
+
         /// <summary>
         /// Applies <paramref name="mapper"/> to all elements of the given <see cref="IEnumerable{T}"/>
         /// and returns a <see cref="List{T}"/> with the results.
         /// </summary>
-        public static object DynamicMap(object enumerable, Func<object, object> mapper)
+        public static IEnumerable DynamicMap(object enumerable, Func<object, object> mapper)
         {
             var type = enumerable.GetType();
 
@@ -65,7 +77,7 @@ namespace RxPlayground.RxInteractive
                 addMethod.Invoke(list, new[] { mapped });
             }
 
-            return list;
+            return (IEnumerable)list;
         }
     }
 }

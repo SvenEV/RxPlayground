@@ -9,7 +9,9 @@ namespace RxPlayground.RxInteractive
         /// <summary>
         /// The single parent/upstream observable.
         /// </summary>
-        IInteractiveObservable TargetObservable { get; }
+        IInteractiveObservablePort TargetPort { get; }
+
+        void Subscribe();
     }
 
     public class InteractiveSubscription<T> : IInteractiveSubscription
@@ -20,27 +22,27 @@ namespace RxPlayground.RxInteractive
 
         public DataFlowNodeId AggregateNodeId { get; }
 
-        public IInteractiveObservable<T> TargetObservable { get; }
+        public IInteractiveObservablePort<T> Upstream { get; }
 
-        public ImmutableDictionary<string, IInteractiveObservable> Parents { get; }
+        public ImmutableList<IInteractiveObservablePort> Upstreams { get; }
 
         public IObservable<RxInteractiveEvent> Events { get; }
 
-        IInteractiveObservable IInteractiveSubscription.TargetObservable => TargetObservable;
+        IInteractiveObservablePort IInteractiveSubscription.TargetPort => Upstream;
 
 
-        public InteractiveSubscription(IInteractiveObservable<T> targetObservable, ITimeProvider timeProvider)
+        public InteractiveSubscription(IInteractiveObservable<T> upstream)
         {
             AggregateNodeId = new DataFlowNodeId(this);
-            TargetObservable = targetObservable;
-            Parents = ImmutableDictionary<string, IInteractiveObservable>.Empty.Add(nameof(TargetObservable), targetObservable);
+            Upstream = upstream.AddDownstream();
+            Upstreams = ImmutableList.Create<IInteractiveObservablePort>(Upstream);
 
-            var edgeId = new DataFlowEdgeId(targetObservable.AggregateNodeId, AggregateNodeId, 0);
-            observer = new InteractiveObserver<T>(edgeId, timeProvider);
+            Upstream.SetTarget(this);
+
+            var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(upstream.AggregateNodeId, AggregateNodeId, 0);
+            observer = new InteractiveObserver<T>(edgeId);
 
             Events = observer.Events.Merge(eventsSubject);
-
-            targetObservable.SetChild(this);
         }
 
         public void Subscribe()
@@ -48,7 +50,7 @@ namespace RxPlayground.RxInteractive
             if (subscription is not null)
                 throw new InvalidOperationException("Already subscribed");
 
-            subscription = TargetObservable.Subscribe(observer);
+            subscription = Upstream.Subscribe(observer);
         }
 
         public void Dispose()
@@ -59,5 +61,7 @@ namespace RxPlayground.RxInteractive
             eventsSubject.OnCompleted();
             eventsSubject.Dispose();
         }
+
+        public override string ToString() => "Subscription";
     }
 }

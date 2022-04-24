@@ -5,7 +5,7 @@ namespace RxPlayground.RxInteractive
     public interface IInteractiveNode
     {
         DataFlowNodeId AggregateNodeId { get; }
-        ImmutableDictionary<string, IInteractiveObservable> Parents { get; }
+        ImmutableList<IInteractiveObservablePort> Upstreams { get; }
         IObservable<RxInteractiveEvent> Events { get; }
     }
 }

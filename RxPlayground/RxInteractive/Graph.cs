@@ -87,6 +87,6 @@ namespace RxPlayground.RxInteractive
                 {
                     Edges = Edges.SetItem(key, edge with { Value = valueSelector(edge.Value) })
                 }
-                : throw new ArgumentException($"The edge with key '{key}' does not exist");
+                : this;// throw new ArgumentException($"The edge with key '{key}' does not exist");
     }
 }

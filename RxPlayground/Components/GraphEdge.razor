@@ -16,24 +16,37 @@
     public object? Target { get; set; }
 
     [Parameter]
+    public string Color { get; set; } = "black";
+
+    [Parameter]
+    public int Width { get; set; } = 1;
+
+    [Parameter]
+    public int ZIndex { get; set; } = 0;
+
+    [Parameter]
+    public float Offset { get; set; } = 0;
+
+    [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
     [CascadingParameter]
     public GraphView? Graph { get; set; }
 
-    public async Task DrawAsync(Canvas2DContext context, float offset)
+    public async Task DrawAsync(Canvas2DContext context)
     {
         var source = Graph?.GetNode(Source);
         var target = Graph?.GetNode(Target);
 
         if (source is not null && target is not null)
         {
-            await context.SetStrokeStyleAsync("black");
+            await context.SetStrokeStyleAsync(Color);
+            await context.SetLineWidthAsync(Width);
             await context.BeginPathAsync();
 
             var orthogonal = Vector2.Normalize(new Vector2(target.Position.Y - source.Position.Y, target.Position.X - source.Position.X));
-            var sourcePositionWithOffset = source.Position + offset * orthogonal;
-            var targetPositionWithOffset = target.Position + offset * orthogonal;
+            var sourcePositionWithOffset = source.Position + Offset * orthogonal;
+            var targetPositionWithOffset = target.Position + Offset * orthogonal;
 
             await context.MoveToAsync(sourcePositionWithOffset.X, sourcePositionWithOffset.Y);
             await context.LineToAsync(targetPositionWithOffset.X, targetPositionWithOffset.Y);
@@ -51,7 +64,12 @@
             var lineLength = (target.Position - source.Position).Length();
             var lineStart = Vector2.Lerp(source.Position, target.Position, source.Size / 2 / lineLength);
             var lineEnd = Vector2.Lerp(target.Position, source.Position, target.Size / 2 / lineLength);
-            return Vector2.Lerp(lineStart, lineEnd, MathF.Min(1, MathF.Max(0, position)));
+
+            var orthogonal = Vector2.Normalize(new Vector2(target.Position.Y - source.Position.Y, target.Position.X - source.Position.X));
+            var lineStartWithOffset = lineStart + Offset * orthogonal;
+            var lineEndWithOffset = lineEnd + Offset * orthogonal;
+
+            return Vector2.Lerp(lineStartWithOffset, lineEndWithOffset, MathF.Min(1, MathF.Max(0, position)));
         }
 
         return null;

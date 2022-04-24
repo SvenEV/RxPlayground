@@ -29,23 +29,15 @@
 
         var combined = Observable
             .CombineLatest(
-                subject.Inspect(session),
-                timer.Inspect(session),
+                subject,
+                timer,
                 (str, number) => $"{str}{number}")
-            .Inspect(session)
-            .Select(str => str + " :)");
+            .Publish()
+            .RefCount();
 
-        subject
-            .Inspect(session)
-            .Subscribe(session);
-
-        combined
-            .Inspect(session)
-            .Subscribe(session);
-
-        combined
-            .Inspect(session)
-            .Subscribe(session);
+        session.DeclareSubscription(subject);
+        session.DeclareSubscription(combined);
+        session.DeclareSubscription(combined.Select(str => str + " :)"));
 
         Task.Run(async () =>
         {

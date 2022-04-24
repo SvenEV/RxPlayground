@@ -1,54 +1,100 @@
 ﻿using System.Collections.Immutable;
-using System.Reflection;
 
 namespace RxPlayground.RxInteractive
 {
+    /// <summary>
+    /// Keeps track of <see cref="IInteractiveObservable"/> instances.
+    /// This is needed in case an observable is visited multiple times, e.g. when constructing
+    /// two subscriptions to the same observable.
+    /// </summary>
+    public interface IIntrospectionCache
+    {
+        IInteractiveObservable GetOrAdd(object observable, Func<IInteractiveObservable> factoryFunc);
+    }
+
     public static class Introspection
     {
-        public static ImmutableDictionary<string, IInteractiveObservable> GetParentsThroughReflection<T>(IObservable<T> observable)
+        public static IInteractiveObservable<T> Inspect<T>(this IObservable<T> observable, IIntrospectionCache cache) =>
+            (IInteractiveObservable<T>)InjectInspector(observable, cache);
+
+        public static IInteractiveObservable InjectInspector(object observable, IIntrospectionCache cache)
         {
-            var fields = observable.GetType()
-                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic);
+            return cache.GetOrAdd(observable, CreateInteractiveObservable);
 
-            return fields
-                .Select(field => new { FieldName = field.Name, Value = field.GetValue(observable) })
-                .Where(o => o.Value is IInteractiveObservable)
-                .ToImmutableDictionary(o => o.FieldName, o => (IInteractiveObservable)o.Value!);
-        }
-
-        public static IInteractiveObservable<T> Inspect<T>(this IObservable<T> observable) =>
-            (IInteractiveObservable<T>)InjectInspector(observable);
-
-        public static IInteractiveObservable InjectInspector(object observable)
-        {
-            if (observable is IInteractiveObservable interactiveObservable)
-            {
-                // Observable is already interactive => just return it, don't wrap it in another IInteractiveObservable
-                return interactiveObservable;
-            }
-
-            try
-            {
-                return MakeInteractiveByConvention(observable);
-            }
-            catch (Exception ex)
+            IInteractiveObservable CreateInteractiveObservable()
             {
                 var type = observable.GetType();
-                var genericTypeDef = type.GetGenericTypeDefinition();
-
-                var typeParamNames = genericTypeDef.GetGenericArguments().Select(t => t.Name).ToImmutableList();
+                var genericTypeDef = type.IsConstructedGenericType ? type.GetGenericTypeDefinition() : null;
+                var typeParamNames = genericTypeDef?.GetGenericArguments().Select(t => t.Name).ToImmutableList() ?? ImmutableList<string>.Empty;
                 var typeArgs = Enumerable.Range(0, typeParamNames.Count).ToImmutableDictionary(i => typeParamNames[i], i => type.GenericTypeArguments[i]);
-                var typeName = genericTypeDef.FullName![0..genericTypeDef.FullName!.LastIndexOf('`')] + "<" + string.Join(", ", typeParamNames) + ">";
 
-                var fields = type
-                    .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
-                    .ToImmutableDictionary(f => f.Name, f => f.GetValue(observable));
+                var typeName = type.IsConstructedGenericType
+                    ? genericTypeDef!.FullName![0..genericTypeDef.FullName!.LastIndexOf('`')] + "<" + string.Join(", ", typeParamNames) + ">"
+                    : type.FullName!;
 
-                return typeName switch
+                switch (typeName)
                 {
-                    // TODO: Implement special cases for observable types that cannot be mapped by convention
-                    _ => throw new NotImplementedException($"'{typeName}' cannot be made interactive by convention, but is also not special-cased", ex)
+                    case "System.Reactive.Subjects.Subject<T>":
+                        return (IInteractiveObservable)Activator.CreateInstance(
+                            typeof(InteractiveObservable<>).MakeGenericType(typeArgs["T"]),
+                            observable,
+                            ImmutableList<IInteractiveObservablePort>.Empty
+                        )!;
+
+                    case "System.Reactive.Subjects.ConnectableObservable<TSource, TResult>":
+                        {
+                            var source = type.GetAllPrivateFields()
+                            .Single(f => f.Name == "_source")
+                            .GetValue(observable)!;
+
+                            var sourceWrapped = InjectInspector(source, cache).AddDownstream();
+
+                            var subject = type.GetAllPrivateFields()
+                                .Single(f => f.Name == "_subject")
+                                .GetValue(observable)!;
+
+                            return (IInteractiveObservable)Activator.CreateInstance(
+                                typeof(InteractiveObservable<>).MakeGenericType(typeArgs["TResult"]),
+                                type.GetConstructors()[0].Invoke(new[] { sourceWrapped, subject })!,
+                                ImmutableList.Create(sourceWrapped)
+                            )!;
+                        }
+
+                    case "System.Reactive.Linq.ObservableImpl.RefCount<TSource>":
+                        {
+                            var source = type.GetAllPrivateFields()
+                                .Single(f => f.Name == "_source")
+                                .GetValue(observable)!;
+
+                            var sourceWrapped = InjectInspector(source, cache).AddDownstream();
+
+                            var minObservers = type.GetAllPrivateFields()
+                                .Single(f => f.Name == "_minObservers")
+                                .GetValue(observable)!;
+
+                            return (IInteractiveObservable)Activator.CreateInstance(
+                                typeof(InteractiveObservable<>).MakeGenericType(typeArgs["TSource"]),
+                                type.GetConstructors()[0].Invoke(new[] { sourceWrapped, minObservers })!,
+                                ImmutableList.Create(sourceWrapped)
+                            )!;
+                        }
+
+
+                    default:
+                        return TryByConvention(typeName);
                 };
+            }
+
+            IInteractiveObservable TryByConvention(string typeName)
+            {
+                try
+                {
+                    return MakeInteractiveByConvention(observable, cache);
+                }
+                catch (Exception ex)
+                {
+                    throw new NotImplementedException($"'{typeName}' is not special-cased, but can also not be made interactive by convention", ex);
+                }
             }
         }
 
@@ -58,8 +104,9 @@ namespace RxPlayground.RxInteractive
         ///   (the observable must implement <see cref="IObservable{T}"/> for exactly one type T)
         /// - automatically cloning the observable recursively, replacing any upstream
         ///   <see cref="IObservable{T}"/> with an <see cref="IInteractiveObservable{T}"/>
+        ///   (this relies on the convention that there is a 1-to-1 mapping of private fields "_foo" to constructor parameters "foo")
         /// </summary>
-        public static IInteractiveObservable MakeInteractiveByConvention(object observable)
+        public static IInteractiveObservable MakeInteractiveByConvention(object observable, IIntrospectionCache cache)
         {
             var observableElementType = observable.GetType().GetImplementationsOfGenericTypeDef(typeof(IObservable<>)) switch
             {
@@ -67,41 +114,67 @@ namespace RxPlayground.RxInteractive
                 var list => throw new ArgumentException($"'{observable.GetType().Name}' must have exactly 1 implementation of IObservable<T> but has {list.Count}")
             };
 
-            return MakeInteractiveObservable(observableElementType, AutoCloneObservable(observable));
-        }
-
-        /// <summary>
-        /// Automatically maps fields "_foo" to constructor parameters "foo", thereby recursively calling
-        /// InjectInspector() on fields of type IObservable<> or IEnumerable<IObservable<>>
-        /// </summary>
-        static object AutoCloneObservable(object observable)
-        {
             try
             {
                 var type = observable.GetType();
 
-                var fieldsTransformed = type
-                    .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
-                    .ToImmutableDictionary(f => f.Name, f => f.GetValue(observable) switch
+                var initialFieldsAndUpstreams = new
+                {
+                    Fields = ImmutableDictionary<string, object?>.Empty,
+                    Upstreams = ImmutableList<IInteractiveObservablePort>.Empty
+                };
+
+                var fieldsAndUpstreams = type
+                    .GetAllPrivateFields()
+                    .Aggregate(initialFieldsAndUpstreams, (state, f) => f.GetValue(observable) switch
                     {
-                        null => null,
-                        var value when IsObservableType(value.GetType()) => InjectInspector(value),
-                        var value when IsObservableCollectionType(value.GetType()) => ReflectionUtil.DynamicMap(value, InjectInspector),
-                        var value => value
+                        null =>
+                            state with { Fields = state.Fields.Add(f.Name, null) },
+
+                        var value when (
+                            IsObservableType(value.GetType()) &&
+                            InjectInspector(value, cache) is var upstream &&
+                            upstream.AddDownstream() is var upstreamPort
+                        ) =>
+                            state with
+                            {
+                                Fields = state.Fields.Add(f.Name, upstreamPort),
+                                Upstreams = state.Upstreams.Add(upstreamPort)
+                            },
+
+                        var value when (
+                            IsObservableCollectionType(value.GetType()) &&
+                            ReflectionUtil.DynamicMap(value, obs => InjectInspector(obs, cache).AddDownstream()) is var upstreamPorts
+                        ) =>
+                            state with
+                            {
+                                Fields = state.Fields.Add(f.Name, upstreamPorts),
+                                Upstreams = state.Upstreams.AddRange(upstreamPorts.Cast<IInteractiveObservablePort>().ToImmutableList())
+                            },
+
+                        var value =>
+                            state with { Fields = state.Fields.Add(f.Name, value) },
                     });
 
                 var constructor = type!.GetConstructors()
-                    .FirstOrDefault(ctor => ctor.GetParameters().Length == fieldsTransformed.Count)
-                    ?? throw new ArgumentException($"Constructor with {fieldsTransformed.Count} parameters not found");
+                    .FirstOrDefault(ctor => ctor.GetParameters().Length == fieldsAndUpstreams.Fields.Count)
+                    ?? throw new ArgumentException($"'{type!.FullName}' has no constructor with {fieldsAndUpstreams.Fields.Count} parameter(s) (for field(s) {string.Join(", ", fieldsAndUpstreams.Fields.Keys)})");
 
                 var constructorArgs = constructor.GetParameters()
-                    .Select(para => fieldsTransformed!.TryGetValue("_" + para.Name, out var value)
+                    .Select(para => fieldsAndUpstreams.Fields.TryGetValue("_" + para.Name, out var value)
                         ? value
                         : throw new Exception($"Constructor parameter '{para.Name}' has no matching field '_{para.Name}'")
                     )
                     .ToArray();
 
-                return constructor.Invoke(constructorArgs);
+                var observableCloned = constructor.Invoke(constructorArgs);
+
+                var interactiveObservable = (IInteractiveObservable)Activator.CreateInstance(
+                    typeof(InteractiveObservable<>).MakeGenericType(observableElementType),
+                    observableCloned,
+                    fieldsAndUpstreams.Upstreams)!;
+
+                return interactiveObservable;
             }
             catch (Exception ex)
             {
@@ -122,8 +195,6 @@ namespace RxPlayground.RxInteractive
             return constructor.Invoke(constructorArgs);
         }
 
-        static IInteractiveObservable MakeInteractiveObservable(Type observableElementType, object observable) =>
-            (IInteractiveObservable)Activator.CreateInstance(typeof(InteractiveObservable<>).MakeGenericType(observableElementType), observable)!;
 
         public static bool IsObservableType(Type type) =>
             type.IsAssignableToGenericType(typeof(IObservable<>));

@@ -9,27 +9,36 @@
 
         @foreach (var edge in state.Graph.Edges)
         {
-            <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target">
-                @foreach (var emission in edge.Value.Value.Emissions)
-                {
-                    <GraphEdgeToken Position="(float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds)">
-                        @switch (emission.Emission)
+            @switch (edge.Value.Value)
+            {
+                case DataFlowEdge.StaticEdge staticEdge:
+                    <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" Color="#eee" Width="25" />
+                    break;
+
+                case DataFlowEdge.SubscriptionEdge subscriptionEdge:
+                    <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" ZIndex="1" Offset="((DataFlowEdgeId.SubscriptionEdgeId)edge.Key).SequenceNumber * 10">
+                        @foreach (var emission in subscriptionEdge.Emissions)
                         {
-                            case ObservableEmission.Next next:
-                                @(next.Value?.ToString() ?? "null")
-                                break;
+                            <GraphEdgeToken Position="(float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds)">
+                                @switch (emission.Emission)
+                                {
+                                    case ObservableEmission.Next next:
+                                        @(next.Value?.ToString() ?? "null")
+                                        break;
 
-                            case ObservableEmission.Error error:
-                                @:💥
-                                break;
+                                    case ObservableEmission.Error error:
+                                        @:💥
+                                        break;
 
-                            case ObservableEmission.Completed:
-                                @:🔷
-                                break;
+                                    case ObservableEmission.Completed:
+                                        @:🔷
+                                        break;
+                                }
+                            </GraphEdgeToken>
                         }
-                    </GraphEdgeToken>
-                }
-            </GraphEdge>
+                    </GraphEdge>
+                    break;
+            }
         }
     </GraphView>
 
@@ -50,12 +59,12 @@
             {
                 <li>
                     [@edge.Key] @edge.Value.Value (@edge.Value.Source → @edge.Value.Target)
-                    <ul>
+                    @*<ul>
                         @foreach (var emission in edge.Value.Value.Emissions)
                         {
                             <li>@emission.Timestamp.ToString("O") - @((float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds))</li>
                         }
-                    </ul>
+                    </ul>*@
                 </li>
             }
         </ul>
