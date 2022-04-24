@@ -79,5 +79,23 @@ namespace RxPlayground.RxInteractive
 
             return (IEnumerable)list;
         }
+
+        /// <summary>
+        /// Creates a <see cref="List{T}"/> with the same element type as <paramref name="collectionType"/>.
+        /// </summary>
+        public static IEnumerable CreateList(Type collectionType, IEnumerable<object> items)
+        {
+            var elementType = collectionType.IsArray
+                ? collectionType.GetElementType()!
+                : collectionType.GetGenericArguments()[0];
+
+            var list = Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
+            var addMethod = list.GetType().GetMethod("Add")!;
+
+            foreach (var item in items)
+                addMethod.Invoke(list, new[] { item });
+
+            return (IEnumerable)list;
+        }
     }
 }

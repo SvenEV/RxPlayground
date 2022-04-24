@@ -30,31 +30,34 @@ namespace RxPlayground.RxInteractive
             this.underlyingObserver = underlyingObserver;
         }
 
-        public void OnCompleted()
+        public async void OnCompleted()
         {
-            underlyingObserver?.OnCompleted();
-
             eventsSubject.OnNext(new RxInteractiveEvent.ValueEmitted(
                 EdgeId: Id,
                 Emission: new ObservableEmission.Completed()));
+
+            await Task.Delay(3000);
+            underlyingObserver?.OnCompleted();
         }
 
-        public void OnError(Exception error)
+        public async void OnError(Exception error)
         {
-            underlyingObserver?.OnError(error);
-
             eventsSubject.OnNext(new RxInteractiveEvent.ValueEmitted(
                 EdgeId: Id,
                 Emission: new ObservableEmission.Error(error)));
+
+            await Task.Delay(3000);
+            underlyingObserver?.OnError(error);
         }
 
-        public void OnNext(T value)
+        public async void OnNext(T value)
         {
-            underlyingObserver?.OnNext(value);
-
             eventsSubject.OnNext(new RxInteractiveEvent.ValueEmitted(
                 EdgeId: Id,
                 Emission: new ObservableEmission.Next(value!)));
+
+            await Task.Delay(3000);
+            underlyingObserver?.OnNext(value);
         }
     }
 }

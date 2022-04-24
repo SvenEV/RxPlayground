@@ -12,6 +12,15 @@ namespace RxPlayground.RxInteractive
         object UnderlyingObservable { get; }
         IReadOnlyList<IInteractiveObservablePort> Downstreams { get; }
         IInteractiveObservablePort AddDownstream();
+
+        public static IInteractiveObservable Create(Type observableElementType, object sourceObservable, ImmutableList<IInteractiveObservablePort> upstreams)
+        {
+            return (IInteractiveObservable)Activator.CreateInstance(
+                typeof(InteractiveObservable<>).MakeGenericType(observableElementType),
+                sourceObservable,
+                upstreams
+            )!;
+        }
     }
 
     public interface IInteractiveObservable<T> : IInteractiveObservable
