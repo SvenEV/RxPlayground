@@ -4,7 +4,7 @@
 
 <div class="graph-view" @onpointerdown="OnPointerDown" @onpointerup="OnPointerUp" @onpointermove="OnPointerMove" @ref="element">
     <BECanvas @ref="canvas" Width="800" Height="600" />
-    <div class="zero" style="--x: @(translateX)px; --y: @(translateY)px" @onpointerdown:stopPropagation>
+    <div class="zero" style="--x: @(translation.X)px; --y: @(translation.Y)px" @onpointerdown:stopPropagation>
         <CascadingValue Value="this">
             @ChildContent
         </CascadingValue>
@@ -12,8 +12,7 @@
 </div>
 
 @code {
-    private double translateX;
-    private double translateY;
+    private Vector2 translation;
     private DragOperation? dragOperation;
     private ElementReference element;
 
@@ -24,8 +23,8 @@
     private Canvas2DContext? canvasContext;
 
     private record DragOperation(
-        double OriginalTranslateX, double OriginalTranslateY,
-        double StartX, double StartY);
+        Vector2 OriginalTranslation,
+        Vector2 PointerDownPosition);
 
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
@@ -38,11 +37,18 @@
         await canvasContext.BeginBatchAsync();
         await canvasContext.SetTransformAsync(1, 0, 0, 1, 0, 0);
         await canvasContext.ClearRectAsync(0, 0, canvas!.Width, canvas.Height);
-        await canvasContext.TranslateAsync(400 + translateX, 300 + translateY);
+        await canvasContext.TranslateAsync(canvas.Width / 2 + translation.X, canvas.Height / 2 + translation.Y);
 
-        foreach (var edge in edges.Values)
+        foreach (var edgeGroup in edges.Values.GroupBy(e => (e.Source, e.Target)))
         {
-            await edge.DrawAsync(canvasContext);
+            var count = edgeGroup.Count();
+            var i = 0;
+
+            foreach (var edge in edgeGroup)
+            {
+                var offset = (count == 1) ? 0 : Vector2.Lerp(-10 * Vector2.UnitX, 10 * Vector2.UnitX, (float)i++ / count).X;
+                await edge.DrawAsync(canvasContext, offset);
+            }
         }
         await canvasContext.EndBatchAsync();
     }
@@ -51,7 +57,7 @@
     {
         if (args.IsPrimary)
         {
-            dragOperation = new(translateX, translateY, args.OffsetX, args.OffsetY);
+            dragOperation = new(translation, new((float)args.OffsetX, (float)args.OffsetY));
             await DomHelper.SetPointerCaptureAsync(element, args.PointerId);
         }
     }
@@ -60,8 +66,8 @@
     {
         if (args.IsPrimary && dragOperation is not null)
         {
-            translateX = dragOperation.OriginalTranslateX + (args.OffsetX - dragOperation.StartX);
-            translateY = dragOperation.OriginalTranslateY + (args.OffsetY - dragOperation.StartY);
+            var offset = new Vector2((float)args.OffsetX, (float)args.OffsetY);
+            translation = dragOperation.OriginalTranslation + (offset - dragOperation.PointerDownPosition);
             dragOperation = null;
             await DomHelper.ReleasePointerCaptureAsync(element, args.PointerId);
         }
@@ -71,8 +77,8 @@
     {
         if (args.IsPrimary && dragOperation is not null)
         {
-            translateX = dragOperation.OriginalTranslateX + (args.OffsetX - dragOperation.StartX);
-            translateY = dragOperation.OriginalTranslateY + (args.OffsetY - dragOperation.StartY);
+            var offset = new Vector2((float)args.OffsetX, (float)args.OffsetY);
+            translation = dragOperation.OriginalTranslation + (offset - dragOperation.PointerDownPosition);
         }
     }
 

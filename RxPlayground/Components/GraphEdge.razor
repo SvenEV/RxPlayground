@@ -1,6 +1,10 @@
 ﻿@using Blazor.Extensions
 @using Blazor.Extensions.Canvas.Canvas2D
 
+<CascadingValue Value="this">
+    @ChildContent
+</CascadingValue>
+
 @code {
     [Parameter]
     public object? Id { get; set; }
@@ -11,10 +15,13 @@
     [Parameter]
     public object? Target { get; set; }
 
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
     [CascadingParameter]
     public GraphView? Graph { get; set; }
 
-    public async Task DrawAsync(Canvas2DContext context)
+    public async Task DrawAsync(Canvas2DContext context, float offset)
     {
         var source = Graph?.GetNode(Source);
         var target = Graph?.GetNode(Target);
@@ -23,10 +30,31 @@
         {
             await context.SetStrokeStyleAsync("black");
             await context.BeginPathAsync();
-            await context.MoveToAsync(source.X, source.Y);
-            await context.LineToAsync(target.X, target.Y);
+
+            var orthogonal = Vector2.Normalize(new Vector2(target.Position.Y - source.Position.Y, target.Position.X - source.Position.X));
+            var sourcePositionWithOffset = source.Position + offset * orthogonal;
+            var targetPositionWithOffset = target.Position + offset * orthogonal;
+
+            await context.MoveToAsync(sourcePositionWithOffset.X, sourcePositionWithOffset.Y);
+            await context.LineToAsync(targetPositionWithOffset.X, targetPositionWithOffset.Y);
             await context.StrokeAsync();
         }
+    }
+
+    public Vector2? Lerp(float position)
+    {
+        var source = Graph?.GetNode(Source);
+        var target = Graph?.GetNode(Target);
+
+        if (source is not null && target is not null)
+        {
+            var lineLength = (target.Position - source.Position).Length();
+            var lineStart = Vector2.Lerp(source.Position, target.Position, source.Size / 2 / lineLength);
+            var lineEnd = Vector2.Lerp(target.Position, source.Position, target.Size / 2 / lineLength);
+            return Vector2.Lerp(lineStart, lineEnd, MathF.Min(1, MathF.Max(0, position)));
+        }
+
+        return null;
     }
 
     public override async Task SetParametersAsync(ParameterView parameters)

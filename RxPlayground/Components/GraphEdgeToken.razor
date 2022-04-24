@@ -1,0 +1,22 @@
+﻿@if (Edge?.Lerp(Position) is Vector2 p)
+{
+    <div class="graph-edge-token" style="@Style(p)">
+        @ChildContent
+    </div>
+}
+
+@code {
+    [Parameter]
+    public float Position { get; set; } = .5f;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [CascadingParameter]
+    public GraphEdge? Edge { get; set; }
+
+    private string Style(Vector2 p) =>
+        FormattableString.Invariant(
+            $"left: {p.X:0.00}px; top: {p.Y:0.00}px; opacity: {1 - Position * Position:0.00};"
+        );
+}

@@ -6,27 +6,23 @@ using System.Reflection;
 
 namespace RxPlayground.RxInteractive
 {
-    public interface IInteractiveObservable
+    public interface IInteractiveObservable : IInteractiveNode
     {
-        ObservableId Id { get; }
-        ImmutableDictionary<string, IInteractiveObservable> Parents { get; }
-        IObservable<RxInteractiveEvent> Events { get; }
-        object Source { get; }
+        object UnderlyingObservable { get; }
+        IInteractiveNode? Child { get; }
+        void SetChild(IInteractiveNode child);
     }
 
     public interface IInteractiveObservable<T> : IInteractiveObservable, IObservable<T>
     {
-        new IObservable<T> Source { get; }
+        new IObservable<T> UnderlyingObservable { get; }
     }
 
     public static class InteractiveObservableExtensions
     {
         public static IInteractiveObservable<T> Inspect<T>(this IObservable<T> source, RxInteractiveSession session)
         {
-            var id = new ObservableId(Guid.NewGuid());
-            var wrappedObservable = new InteractiveObservable<T>(id, source, session.TimeProvider);
-
-            session.AddEventSource(wrappedObservable.Events);
+            var wrappedObservable = new InteractiveObservable<T>(source, session.TimeProvider);
 
             session.OnNext(new RxInteractiveEvent.ObservableCreated(
                 Timestamp: session.TimeProvider.GetTimestamp(),
@@ -37,9 +33,12 @@ namespace RxPlayground.RxInteractive
 
         public static IDisposable Subscribe<T>(this IInteractiveObservable<T> source, RxInteractiveSession session)
         {
-            var id = new ObserverId(Guid.NewGuid());
-            var subscription = new InteractiveSubscription<T>(source, id, session.TimeProvider);
-            session.AddEventSource(subscription.Events);
+            var subscription = new InteractiveSubscription<T>(source, session.TimeProvider);
+
+            session.OnNext(new RxInteractiveEvent.SubscriberCreated(
+                Timestamp: session.TimeProvider.GetTimestamp(),
+                Subscriber: subscription));
+
             subscription.Subscribe();
             return subscription;
         }
@@ -53,29 +52,36 @@ namespace RxPlayground.RxInteractive
         private readonly ITimeProvider timeProvider;
         private readonly Subject<RxInteractiveEvent> eventsSubject = new();
 
-        public ObservableId Id { get; }
+        public DataFlowNodeId AggregateNodeId { get; }
 
         public ImmutableDictionary<string, IInteractiveObservable> Parents { get; }
 
+        public IInteractiveNode? Child { get; private set; }
+
         public IObservable<RxInteractiveEvent> Events { get; }
 
-        public IObservable<T> Source { get; }
+        public IObservable<T> UnderlyingObservable { get; }
 
-        object IInteractiveObservable.Source => Source;
+        object IInteractiveObservable.UnderlyingObservable => UnderlyingObservable;
 
         public InteractiveObservable(IObservable<T> source)
         {
-            Source = source;
+            UnderlyingObservable = source;
         }
 
         [Obsolete]
-        public InteractiveObservable(ObservableId id, IObservable<T> source, ITimeProvider timeProvider)
+        public InteractiveObservable(IObservable<T> source, ITimeProvider timeProvider)
         {
-            Id = id;
-            Source = source;
             this.timeProvider = timeProvider;
 
+            UnderlyingObservable = source;
+
+            AggregateNodeId = new DataFlowNodeId(UnderlyingObservable);
+
             Parents = Introspection.GetParentsThroughReflection(source);
+
+            foreach (var parent in Parents)
+                parent.Value.SetChild(this);
 
             Events = eventsSubject
                 .Merge(observersSubject
@@ -84,32 +90,56 @@ namespace RxPlayground.RxInteractive
                 );
         }
 
+        public void SetChild(IInteractiveNode child)
+        {
+            if (Child is not null)
+                throw new InvalidOperationException($"Interactive observable already has a child. It cannot have multiple children.");
+
+            Child = child;
+        }
+
         public IDisposable Subscribe(IObserver<T> observer)
         {
-            var wrappedObserverId = new ObserverId(Guid.NewGuid());
-            var wrappedObserver = new InteractiveObserver<T>(wrappedObserverId, timeProvider, observer);
-
-            eventsSubject.OnNext(new RxInteractiveEvent.Subscribed(
-                Timestamp: timeProvider.GetTimestamp(),
-                ObservableId: Id,
-                Observer: wrappedObserver));
-
-            var subscription = Source.Subscribe(wrappedObserver);
+            if (Child is null)
+                throw new InvalidOperationException("Inconsistent state: Received Subscribe() call from downstream observable, but Child is null");
 
             lock (observersSubject)
+            {
+                var edgeId = new DataFlowEdgeId(AggregateNodeId, Child.AggregateNodeId, observersSubject.Value.Count);
+                var wrappedObserver = new InteractiveObserver<T>(edgeId, timeProvider, observer);
+
+                eventsSubject.OnNext(new RxInteractiveEvent.Subscribed(
+                    Timestamp: timeProvider.GetTimestamp(),
+                    EdgeId: edgeId,
+                    Observer: wrappedObserver));
+
+                var subscription = UnderlyingObservable.Subscribe(wrappedObserver);
+
                 observersSubject.OnNext(observersSubject.Value.Add(wrappedObserver));
 
-            return Disposable.Create(() =>
-            {
-                subscription.Dispose();
+                return Disposable.Create(() =>
+                {
+                    subscription.Dispose();
 
-                eventsSubject.OnNext(new RxInteractiveEvent.Unsubscribed(
-                    Timestamp: timeProvider.GetTimestamp(),
-                    ObserverId: wrappedObserverId));
+                    eventsSubject.OnNext(new RxInteractiveEvent.Unsubscribed(
+                        Timestamp: timeProvider.GetTimestamp(),
+                        EdgeId: edgeId));
 
-                lock (observersSubject)
-                    observersSubject.OnNext(observersSubject.Value.Remove(wrappedObserver));
-            });
+                    lock (observersSubject)
+                        observersSubject.OnNext(observersSubject.Value.Remove(wrappedObserver));
+                });
+            }
+        }
+
+        private static ImmutableDictionary<string, IInteractiveObservable> GetParentsThroughReflection(IObservable<T> observable)
+        {
+            var fields = observable.GetType()
+                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic);
+
+            return fields
+                .Select(field => new { FieldName = field.Name, Value = field.GetValue(observable) })
+                .Where(o => o.Value is IInteractiveObservable)
+                .ToImmutableDictionary(o => o.FieldName, o => (IInteractiveObservable)o.Value!);
         }
     }
 }

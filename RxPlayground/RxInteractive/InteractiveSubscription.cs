@@ -1,27 +1,46 @@
-﻿using System.Reactive.Linq;
+﻿using System.Collections.Immutable;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
 namespace RxPlayground.RxInteractive
 {
-    public class InteractiveSubscription<T> : IDisposable
+    public interface IInteractiveSubscription : IInteractiveNode, IDisposable
+    {
+        /// <summary>
+        /// The single parent/upstream observable.
+        /// </summary>
+        IInteractiveObservable TargetObservable { get; }
+    }
+
+    public class InteractiveSubscription<T> : IInteractiveSubscription
     {
         private readonly Subject<RxInteractiveEvent> eventsSubject = new();
-        private readonly ITimeProvider timeProvider;
+        private readonly InteractiveObserver<T> observer;
         private IDisposable? subscription;
 
-        public IInteractiveObservable<T> Observable { get; }
+        public DataFlowNodeId AggregateNodeId { get; }
 
-        public InteractiveObserver<T> Observer { get; }
+        public IInteractiveObservable<T> TargetObservable { get; }
+
+        public ImmutableDictionary<string, IInteractiveObservable> Parents { get; }
 
         public IObservable<RxInteractiveEvent> Events { get; }
 
-        public InteractiveSubscription(IInteractiveObservable<T> observable, ObserverId observerId, ITimeProvider timeProvider)
-        {
-            this.timeProvider = timeProvider;
+        IInteractiveObservable IInteractiveSubscription.TargetObservable => TargetObservable;
 
-            Observable = observable;
-            Observer = new InteractiveObserver<T>(observerId, timeProvider);
-            Events = Observer.Events.Merge(eventsSubject);
+
+        public InteractiveSubscription(IInteractiveObservable<T> targetObservable, ITimeProvider timeProvider)
+        {
+            AggregateNodeId = new DataFlowNodeId(this);
+            TargetObservable = targetObservable;
+            Parents = ImmutableDictionary<string, IInteractiveObservable>.Empty.Add(nameof(TargetObservable), targetObservable);
+
+            var edgeId = new DataFlowEdgeId(targetObservable.AggregateNodeId, AggregateNodeId, 0);
+            observer = new InteractiveObserver<T>(edgeId, timeProvider);
+
+            Events = observer.Events.Merge(eventsSubject);
+
+            targetObservable.SetChild(this);
         }
 
         public void Subscribe()
@@ -29,24 +48,13 @@ namespace RxPlayground.RxInteractive
             if (subscription is not null)
                 throw new InvalidOperationException("Already subscribed");
 
-            eventsSubject.OnNext(new RxInteractiveEvent.Subscribed(
-                Timestamp: timeProvider.GetTimestamp(),
-                ObservableId: Observable.Id,
-                Observer: Observer));
-
-            subscription = Observable.Subscribe(Observer);
+            subscription = TargetObservable.Subscribe(observer);
         }
 
         public void Dispose()
         {
             if (subscription is not null)
-            {
                 subscription.Dispose();
-
-                eventsSubject.OnNext(new RxInteractiveEvent.Unsubscribed(
-                    Timestamp: timeProvider.GetTimestamp(),
-                    ObserverId: Observer.Id));
-            }
 
             eventsSubject.OnCompleted();
             eventsSubject.Dispose();

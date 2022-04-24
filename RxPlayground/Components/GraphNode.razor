@@ -1,6 +1,6 @@
 ﻿@if (Id is not null)
 {
-    <div class="graph-node" style="--x: @(X)px; --y: @(Y)px">
+    <div class="graph-node" style="left: @(Position.X)px; top: @(Position.Y)px; width: @(Size)px; height: @(Size)px;">
         @ChildContent
     </div>
 }
@@ -10,10 +10,10 @@
     public object? Id { get; set; }
 
     [Parameter]
-    public double X { get; set; }
+    public Vector2 Position { get; set; }
 
     [Parameter]
-    public double Y { get; set; }
+    public int Size { get; set; } = 50;
 
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
