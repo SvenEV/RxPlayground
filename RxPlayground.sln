@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.1.32407.343
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RxPlayground", "RxPlayground.csproj", "{BBC1E0CC-BC44-4218-9F6E-3411DA166AA9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RxPlayground.Tests", "RxPlayground.Tests\RxPlayground.Tests.csproj", "{33E01B71-E697-42EB-B21B-E3983E6A0617}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RxPlayground", "RxPlayground\RxPlayground.csproj", "{DD138531-174C-4E9A-914F-42B2DA6C31B9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +13,14 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{BBC1E0CC-BC44-4218-9F6E-3411DA166AA9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BBC1E0CC-BC44-4218-9F6E-3411DA166AA9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BBC1E0CC-BC44-4218-9F6E-3411DA166AA9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BBC1E0CC-BC44-4218-9F6E-3411DA166AA9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{33E01B71-E697-42EB-B21B-E3983E6A0617}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33E01B71-E697-42EB-B21B-E3983E6A0617}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33E01B71-E697-42EB-B21B-E3983E6A0617}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33E01B71-E697-42EB-B21B-E3983E6A0617}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD138531-174C-4E9A-914F-42B2DA6C31B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD138531-174C-4E9A-914F-42B2DA6C31B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD138531-174C-4E9A-914F-42B2DA6C31B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD138531-174C-4E9A-914F-42B2DA6C31B9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

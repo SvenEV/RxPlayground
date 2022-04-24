@@ -63,13 +63,19 @@ namespace RxPlayground.RxInteractive
 
         object IInteractiveObservable.Source => Source;
 
+        public InteractiveObservable(IObservable<T> source)
+        {
+            Source = source;
+        }
+
+        [Obsolete]
         public InteractiveObservable(ObservableId id, IObservable<T> source, ITimeProvider timeProvider)
         {
             Id = id;
             Source = source;
             this.timeProvider = timeProvider;
 
-            Parents = GetParentsThroughReflection(source);
+            Parents = Introspection.GetParentsThroughReflection(source);
 
             Events = eventsSubject
                 .Merge(observersSubject
@@ -104,17 +110,6 @@ namespace RxPlayground.RxInteractive
                 lock (observersSubject)
                     observersSubject.OnNext(observersSubject.Value.Remove(wrappedObserver));
             });
-        }
-
-        private static ImmutableDictionary<string, IInteractiveObservable> GetParentsThroughReflection(IObservable<T> observable)
-        {
-            var fields = observable.GetType()
-                .GetFields(BindingFlags.Instance | BindingFlags.NonPublic);
-
-            return fields
-                .Select(field => new { FieldName = field.Name, Value = field.GetValue(observable) })
-                .Where(o => o.Value is IInteractiveObservable)
-                .ToImmutableDictionary(o => o.FieldName, o => (IInteractiveObservable)o.Value!);
         }
     }
 }
