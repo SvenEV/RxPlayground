@@ -31,15 +31,15 @@ namespace RxPlayground.RxInteractive
         IInteractiveObservablePort IInteractiveSubscription.TargetPort => Upstream;
 
 
-        public InteractiveSubscription(IInteractiveObservable<T> upstream)
+        public InteractiveSubscription(IInteractiveObservablePort<T> upstream)
         {
             AggregateNodeId = new DataFlowNodeId(this);
-            Upstream = upstream.AddDownstream();
+            Upstream = upstream;
             Upstreams = ImmutableList.Create<IInteractiveObservablePort>(Upstream);
 
             Upstream.SetTarget(this);
 
-            var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(upstream.AggregateNodeId, AggregateNodeId, 0);
+            var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(upstream.Owner.AggregateNodeId, AggregateNodeId, 0);
             observer = new InteractiveObserver<T>(edgeId);
 
             Events = observer.Events.Merge(eventsSubject);

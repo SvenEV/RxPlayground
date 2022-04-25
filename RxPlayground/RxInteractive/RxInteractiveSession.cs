@@ -31,7 +31,7 @@ namespace RxPlayground.RxInteractive
             state = new(
                 new RxInteractiveSessionState(
                     Timestamp: timeProvider.GetTimestamp(),
-                    InteractiveObservables: ImmutableDictionary<object, InjectInspectorResult>.Empty,
+                    InteractiveObservables: ImmutableDictionary<object, IInteractiveObservable>.Empty,
                     Graph: RxGraph.Empty
                 )
             );
@@ -158,7 +158,7 @@ namespace RxPlayground.RxInteractive
             if (observableInstrumented.Upstreams.Count != 1)
                 throw new InvalidOperationException("Cannot subscribe to an observable with multiple upstreams");
 
-            if (observableInstrumented.Upstreams[0] is not IInteractiveObservable<T> upstream)
+            if (observableInstrumented.Upstreams[0] is not IInteractiveObservablePort<T> upstream)
                 throw new InvalidOperationException("Cannot subscribe if upstream is not of type T");
 
             var subscription = new InteractiveSubscription<T>(upstream);
@@ -169,7 +169,7 @@ namespace RxPlayground.RxInteractive
             ));
         }
 
-        InjectInspectorResult IIntrospectionCache.GetOrAdd(object observable, Func<InjectInspectorResult> factoryFunc)
+        IInteractiveObservable IIntrospectionCache.GetOrAdd(object observable, Func<IInteractiveObservable> factoryFunc)
         {
             lock (stateLock)
             {
@@ -188,19 +188,23 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        bool IIntrospectionCache.ShouldInspect(object observable) => true;
+        bool IIntrospectionCache.ShouldInspect(object observable) => observable.GetType().Name switch
+        {
+            "CombineLatest`3" or "AsObservable`1" or "Eager" /*or "Selector"*/ => false,
+            _ => true
+        };
 
         public IDisposable Subscribe(IObserver<RxInteractiveSessionState> observer) => state.Subscribe(observer);
     }
 
     public record RxInteractiveSessionState(
         DateTimeOffset Timestamp,
-        ImmutableDictionary<object, InjectInspectorResult> InteractiveObservables,
+        ImmutableDictionary<object, IInteractiveObservable> InteractiveObservables,
         RxGraph Graph)
     {
         public static readonly RxInteractiveSessionState Empty = new(
             Timestamp: DateTimeOffset.MinValue,
-            InteractiveObservables: ImmutableDictionary<object, InjectInspectorResult>.Empty,
+            InteractiveObservables: ImmutableDictionary<object, IInteractiveObservable>.Empty,
             Graph: RxGraph.Empty);
     }
 

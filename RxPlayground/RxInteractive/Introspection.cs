@@ -10,55 +10,40 @@ namespace RxPlayground.RxInteractive
     /// </summary>
     public interface IIntrospectionCache
     {
-        InjectInspectorResult GetOrAdd(object observable, Func<InjectInspectorResult> factoryFunc);
+        IInteractiveObservable GetOrAdd(object observable, Func<IInteractiveObservable> factoryFunc);
 
         bool ShouldInspect(object observable);
     }
 
     public record InjectInspectorResult(
         object ObservableRaw,
-        ImmutableList<IInteractiveObservable> Upstreams)
-    {
-        public object TryCreatePort() => ObservableRaw is IInteractiveObservable interactiveObservable
-            ? interactiveObservable.AddDownstream()
-            : ObservableRaw;
-    }
+        ImmutableList<IInteractiveObservablePort> Upstreams);
 
     public static class Introspection
     {
-        private static InjectInspectorResult MakeInteractiveOrPassThrough(
-            bool shouldInspect,
-            object observable,
-            params InjectInspectorResult[] upstreamResults)
-        {
-            if (shouldInspect)
-            {
-                var elementType = GetObservableElementType(observable);
-
-                var interactiveObs = IInteractiveObservable.Create(
-                    elementType,
-                    observable,
-                    upstreamResults.SelectMany(res => res.Upstreams.Select(up => up.AddDownstream())).ToImmutableList());
-
-                // TODO: Eliminate the AddDownstream() call here because ports are already created beforehand.
-                // They need to be provided to this method, but only if shouldInspect==true, hm.....
-
-                return new InjectInspectorResult(interactiveObs, ImmutableList.Create(interactiveObs));
-            }
-            else
-            {
-                return new InjectInspectorResult(observable, upstreamResults.SelectMany(res => res.Upstreams).ToImmutableList());
-            }
-        }
-
         public static InjectInspectorResult Inspect<T>(this IObservable<T> observable, IIntrospectionCache cache) =>
             InjectInspector(observable, cache);
 
         public static InjectInspectorResult InjectInspector(object observable, IIntrospectionCache cache)
         {
-            return cache.GetOrAdd(observable, CreateInteractiveObservable);
+            var shouldInspect = cache.ShouldInspect(observable);
+            var rebuiltObservable = RebuildObservable();
 
-            InjectInspectorResult CreateInteractiveObservable()
+            if (shouldInspect)
+            {
+                var interactiveObs = cache.GetOrAdd(observable, () =>
+                    IInteractiveObservable.Create(rebuiltObservable.ObservableRaw, rebuiltObservable.Upstreams)
+                );
+
+                var port = interactiveObs.AddDownstream();
+                return new InjectInspectorResult(port, ImmutableList.Create(port));
+            }
+            else
+            {
+                return new InjectInspectorResult(rebuiltObservable.ObservableRaw, rebuiltObservable.Upstreams);
+            }
+
+            InjectInspectorResult RebuildObservable()
             {
                 var type = observable.GetType();
                 var genericTypeDef = type.IsConstructedGenericType ? type.GetGenericTypeDefinition() : null;
@@ -69,12 +54,10 @@ namespace RxPlayground.RxInteractive
                     ? genericTypeDef!.FullName![0..genericTypeDef.FullName!.LastIndexOf('`')] + "<" + string.Join(", ", typeParamNames) + ">"
                     : type.FullName!;
 
-                var shouldInspect = cache.ShouldInspect(observable);
-
                 switch (typeName)
                 {
                     case "System.Reactive.Subjects.Subject<T>":
-                        return MakeInteractiveOrPassThrough(shouldInspect, observable);
+                        return new InjectInspectorResult(observable, ImmutableList<IInteractiveObservablePort>.Empty);
 
                     case "System.Reactive.Subjects.ConnectableObservable<TSource, TResult>":
                         {
@@ -82,16 +65,15 @@ namespace RxPlayground.RxInteractive
                                 .Single(f => f.Name == "_source")
                                 .GetValue(observable)!;
 
-                            var sourceInstrumented = InjectInspector(source, cache);
-
                             var subject = type.GetAllPrivateFields()
                                 .Single(f => f.Name == "_subject")
                                 .GetValue(observable)!;
 
-                            return MakeInteractiveOrPassThrough(shouldInspect,
-                                Instantiate(type, new { source = sourceInstrumented.TryCreatePort(), subject = subject }),
-                                sourceInstrumented
-                            );
+                            var sourceInstrumented = InjectInspector(source, cache);
+
+                            return new InjectInspectorResult(
+                                Instantiate(type, new { source = sourceInstrumented.ObservableRaw, subject = subject }),
+                                sourceInstrumented.Upstreams);
                         }
 
                     case "System.Reactive.Linq.ObservableImpl.RefCount<TSource>":
@@ -100,34 +82,28 @@ namespace RxPlayground.RxInteractive
                                 .Single(f => f.Name == "_source")
                                 .GetValue(observable)!;
 
-                            var sourceInstrumented = InjectInspector(source, cache);
-
                             var minObservers = type.GetAllPrivateFields()
                                 .Single(f => f.Name == "_minObservers")
                                 .GetValue(observable)!;
 
-                            return MakeInteractiveOrPassThrough(shouldInspect,
-                                Instantiate(type, new { source = sourceInstrumented.TryCreatePort(), minObservers = minObservers }),
-                                sourceInstrumented
-                            );
+                            var sourceInstrumented = InjectInspector(source, cache);
+
+                            return new InjectInspectorResult(
+                                Instantiate(type, new { source = sourceInstrumented.ObservableRaw, minObservers = minObservers }),
+                                sourceInstrumented.Upstreams);
                         }
 
 
                     default:
-                        return TryByConvention(shouldInspect, typeName);
+                        try
+                        {
+                            return MakeInteractiveByConvention(shouldInspect, observable, cache);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new NotImplementedException($"'{typeName}' is not special-cased, but can also not be made interactive by convention", ex);
+                        }
                 };
-            }
-
-            InjectInspectorResult TryByConvention(bool shouldInspect, string typeName)
-            {
-                try
-                {
-                    return MakeInteractiveByConvention(shouldInspect, observable, cache);
-                }
-                catch (Exception ex)
-                {
-                    throw new NotImplementedException($"'{typeName}' is not special-cased, but can also not be made interactive by convention", ex);
-                }
             }
         }
 
@@ -146,15 +122,9 @@ namespace RxPlayground.RxInteractive
             try
             {
                 var type = observable.GetType();
-
-                //var initialFieldsAndUpstreams = new
-                //{
-                //    Fields = ImmutableDictionary<string, object?>.Empty,
-                //    Upstreams = ImmutableList<IInteractiveObservablePort>.Empty
-                //};
-
                 var fields = new Dictionary<string, object?>();
-                var upstreamResults = new List<InjectInspectorResult>();
+
+                var upstreamPorts = new List<IInteractiveObservablePort>();
 
                 foreach (var field in type.GetAllPrivateFields())
                 {
@@ -167,8 +137,8 @@ namespace RxPlayground.RxInteractive
                     else if (IsObservableType(value.GetType()))
                     {
                         var observableInstrumented = InjectInspector(value, cache);
-                        fields.Add(field.Name, observableInstrumented.TryCreatePort());
-                        upstreamResults.Add(observableInstrumented);
+                        fields.Add(field.Name, observableInstrumented.ObservableRaw);
+                        upstreamPorts.AddRange(observableInstrumented.Upstreams);
                     }
                     else if (IsObservableCollectionType(value.GetType()))
                     {
@@ -176,8 +146,8 @@ namespace RxPlayground.RxInteractive
                             .Select(v => InjectInspector(v, cache))
                             .ToList();
 
-                        fields.Add(field.Name, ReflectionUtil.CreateList(value.GetType(), observablesInstrumented.Select(o => o.TryCreatePort())));
-                        upstreamResults.AddRange(observablesInstrumented);
+                        fields.Add(field.Name, ReflectionUtil.CreateList(value.GetType(), observablesInstrumented.Select(o => o.ObservableRaw)));
+                        upstreamPorts.AddRange(observablesInstrumented.SelectMany(o => o.Upstreams));
                     }
                     else
                     {
@@ -196,13 +166,8 @@ namespace RxPlayground.RxInteractive
                     )
                     .ToArray();
 
-                var clonedObservable = constructor.Invoke(constructorArgs);
-
-                return MakeInteractiveOrPassThrough(
-                    shouldInspect,
-                    clonedObservable,
-                    upstreamResults.ToArray()
-                );
+                var newObservable = constructor.Invoke(constructorArgs);
+                return new(newObservable, upstreamPorts.ToImmutableList());
             }
             catch (Exception ex)
             {
@@ -210,7 +175,7 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        private static Type GetObservableElementType(object observable) =>
+        public static Type GetObservableElementType(object observable) =>
             observable.GetType().GetImplementationsOfGenericTypeDef(typeof(IObservable<>)) switch
             {
                 { Count: 1 } list => list[0].GenericTypeArguments[0]!,
