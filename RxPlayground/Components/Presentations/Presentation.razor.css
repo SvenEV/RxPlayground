@@ -1,0 +1,7 @@
+﻿.presentation {
+    display: grid;
+    overflow: hidden;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    background: black;
+}

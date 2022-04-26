@@ -12,6 +12,29 @@
     <link href="css/site.css" rel="stylesheet" />
     <link href="RxPlayground.styles.css" rel="stylesheet" />
     <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
+    <style type="text/css">
+        html {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: grid;
+            grid-template-rows: minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+            body > * {
+                grid-row: 1;
+                grid-column: 1;
+            }
+
+        live-preview-root {
+            display: none;
+        }
+    </style>
 </head>
 <body>
     @RenderBody()

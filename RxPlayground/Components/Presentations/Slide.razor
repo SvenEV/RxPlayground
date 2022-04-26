@@ -1,0 +1,16 @@
+﻿<div class="slide" style="@css">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public double Width { get; set; } = 1366;
+
+    [Parameter]
+    public double Height { get; set; } = 768;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string css => FormattableString.Invariant($"width: {Width:0.000}px; height: {Height:0.000}px;");
+}

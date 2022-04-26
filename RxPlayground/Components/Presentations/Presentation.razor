@@ -1,0 +1,10 @@
+﻿<div class="presentation">
+    <ScaleToParent>
+        @ChildContent
+    </ScaleToParent>
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+}

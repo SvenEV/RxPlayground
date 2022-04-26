@@ -1,0 +1,50 @@
+﻿@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<div @ref="element" style="@css">
+    @ChildContent
+</div>
+
+@code {
+    public enum ScaleMode
+    {
+        Stretch,
+        Uniform,
+        UniformToFill
+    }
+
+    record ScaleFactors(double ScaleX, double ScaleY);
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public ScaleMode Mode { get; set; } = ScaleMode.Uniform;
+
+    private Task<IJSObjectReference>? jsModuleTask;
+    private ElementReference element;
+    private string css;
+
+    protected override void OnInitialized()
+    {
+        jsModuleTask = LoadModule();
+
+        async Task<IJSObjectReference> LoadModule() =>
+            await JS.InvokeAsync<IJSObjectReference>("import", "./Components/ScaleToParent.razor.js");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var scaleFactors = await (await jsModuleTask!).InvokeAsync<ScaleFactors>("getScaleFactors", element);
+
+        var finalScaleFactors = Mode switch
+        {
+            ScaleMode.Uniform when Math.Min(scaleFactors.ScaleX, scaleFactors.ScaleY) is var scale => new(scale, scale),
+            ScaleMode.UniformToFill when Math.Max(scaleFactors.ScaleX, scaleFactors.ScaleY) is var scale => new(scale, scale),
+            _ => scaleFactors
+        };
+
+        css = FormattableString.Invariant($"transform: scale({finalScaleFactors.ScaleX:0.000}, {finalScaleFactors.ScaleY:0.000});");
+        StateHasChanged();
+    }
+}
