@@ -2,4 +2,8 @@
     background: white;
     overflow: hidden;
     padding: 40px 32px;
+
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
 }

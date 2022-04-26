@@ -1,7 +1,4 @@
-﻿@using Blazor.Extensions
-@using Blazor.Extensions.Canvas.Canvas2D
-
-<CascadingValue Value="this">
+﻿<CascadingValue Value="this">
     @ChildContent
 </CascadingValue>
 
@@ -32,27 +29,6 @@
 
     [CascadingParameter]
     public GraphView? Graph { get; set; }
-
-    public async Task DrawAsync(Canvas2DContext context)
-    {
-        var source = Graph?.GetNode(Source);
-        var target = Graph?.GetNode(Target);
-
-        if (source is not null && target is not null)
-        {
-            await context.SetStrokeStyleAsync(Color);
-            await context.SetLineWidthAsync(Width);
-            await context.BeginPathAsync();
-
-            var orthogonal = Vector2.Normalize(new Vector2(target.Position.Y - source.Position.Y, target.Position.X - source.Position.X));
-            var sourcePositionWithOffset = source.Position + Offset * orthogonal;
-            var targetPositionWithOffset = target.Position + Offset * orthogonal;
-
-            await context.MoveToAsync(sourcePositionWithOffset.X, sourcePositionWithOffset.Y);
-            await context.LineToAsync(targetPositionWithOffset.X, targetPositionWithOffset.Y);
-            await context.StrokeAsync();
-        }
-    }
 
     public Vector2? Lerp(float position)
     {

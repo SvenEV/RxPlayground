@@ -1,0 +1,124 @@
+﻿@using BlazorMonaco
+@implements IDisposable
+
+<div>
+    <div class="controls">
+        <button @onclick="() => ScenarioPlayer?.TryStep()">Next Step</button>
+    </div>
+
+    <MonacoEditor Id="@id"
+                  OnDidInit="OnEditorInitialized"
+                  ConstructionOptions="GetEditorOptions" />
+</div>
+
+@code {
+    [Parameter]
+    public RxScenarioPlayer? ScenarioPlayer { get; set; }
+
+    private readonly string id = Guid.NewGuid().ToString();
+
+    private MonacoEditor? editor;
+    private IDisposable? playerStateSubscription;
+    private RxScenarioPlayer.State? playerState;
+    private string[] decorationIds = Array.Empty<string>();
+
+    private bool shouldRender = true;
+
+
+    public override async Task SetParametersAsync(ParameterView parameters)
+    {
+        var oldScenarioPlayer = ScenarioPlayer;
+
+        await base.SetParametersAsync(parameters);
+
+        if (ScenarioPlayer != oldScenarioPlayer)
+        {
+            playerStateSubscription?.Dispose();
+            playerState = null;
+            playerStateSubscription = ScenarioPlayer?.StateObservable.Subscribe(OnPlayerStateChanged);
+            shouldRender = true;
+        }
+    }
+
+    protected override bool ShouldRender() => shouldRender;
+
+    private void OnPlayerStateChanged(RxScenarioPlayer.State state)
+    {
+        playerState = state;
+        shouldRender = true;
+        StateHasChanged();
+    }
+
+    private StandaloneEditorConstructionOptions GetEditorOptions(MonacoEditor _) =>
+        new()
+            {
+                AutomaticLayout = true,
+                Theme = "vs-dark",
+                ReadOnly = true,
+                GlyphMargin = true,
+                Language = "csharp",
+                Value = "..."
+            };
+
+    private void OnEditorInitialized(MonacoEditorBase editor)
+    {
+        this.editor = (MonacoEditor)editor;
+        shouldRender = true;
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        shouldRender = false;
+
+        if (editor is not null)
+        {
+            await editor.SetValue(ScenarioPlayer?.Scenario.FullCode ?? "");
+
+            if (playerState is not null)
+            {
+                if (playerState.NextInstruction is RxInstructionWithLineNumber instruction)
+                {
+                    var rangeFirstLine = new BlazorMonaco.Range(instruction.LineNumber + 1, 1, instruction.LineNumber + 1, 1);
+                    var rangeAllLines = new BlazorMonaco.Range(instruction.LineNumber + 1, 1, instruction.LineNumber + instruction.LineCount, 1);
+
+                    var decorations = new[]
+                    {
+                        new ModelDeltaDecoration
+                        {
+                            Range = rangeFirstLine,
+                            Options = new ModelDecorationOptions
+                            {
+                                IsWholeLine = true,
+                                GlyphMarginClassName = "rx-scenario-code-view--active-line-glyph"
+                            }
+                        },
+                        new ModelDeltaDecoration
+                        {
+                            Range = rangeAllLines,
+                            Options = new ModelDecorationOptions
+                            {
+                                IsWholeLine = true,
+                                ClassName = "rx-scenario-code-view--active-line",
+                            }
+                        }
+                    };
+
+                    decorationIds = await editor.DeltaDecorations(decorationIds, decorations);
+                    await editor.RevealRangeInCenterIfOutsideViewport(rangeAllLines, ScrollType.Smooth);
+                }
+                else
+                {
+                    decorationIds = await editor.DeltaDecorations(decorationIds, Array.Empty<ModelDeltaDecoration>());
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        playerStateSubscription?.Dispose();
+    }
+}

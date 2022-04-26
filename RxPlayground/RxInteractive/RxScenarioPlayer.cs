@@ -7,7 +7,8 @@ namespace RxPlayground.RxInteractive
 {
     public record RxInstructionWithLineNumber(
         RxInstruction Instruction,
-        int LineNumber);
+        int LineNumber,
+        int LineCount);
 
     public record RxScenario(
         ImmutableList<RxInstructionWithLineNumber> Instructions,
@@ -21,9 +22,10 @@ namespace RxPlayground.RxInteractive
 
             foreach (var instruction in instructions)
             {
-                results.Add(new(instruction, lineNumber));
+                var lineCount = instruction.Code.Split("\n").Length;
+                results.Add(new(instruction, lineNumber, lineCount));
                 fullCode.AppendLine(instruction.Code);
-                lineNumber += instruction.Code.Split("\n").Length;
+                lineNumber += lineCount;
             }
 
             return new RxScenario(results.ToImmutable(), fullCode.ToString());
@@ -35,11 +37,19 @@ namespace RxPlayground.RxInteractive
         public record DeclareObservableInstruction(string Name, object Observable, string Code) : RxInstruction(Code);
         public record SubscribeInstruction(object Observable, string Code) : RxInstruction(Code);
 
-        public static RxInstruction DeclareObservable<T>(string name, out T observableOutput, T observable, [CallerArgumentExpression("observable")] string expression = "")
+        public static RxInstruction DeclareObservable<T>(out T observableOutput, T observable,
+            [CallerArgumentExpression("observableOutput")] string varNameExpression = "",
+            [CallerArgumentExpression("observable")] string observableExpression = "")
             where T : notnull
         {
             observableOutput = observable;
-            return new DeclareObservableInstruction(name, observable, $"var {name} = {FixIndent(expression)};");
+
+            var name = varNameExpression.Replace("var ", "");
+
+            return new DeclareObservableInstruction(
+                Name: name,
+                Observable: observable,
+                Code: $"var {name} = {FixIndent(observableExpression)};");
 
             static string FixIndent(string code)
             {
@@ -63,7 +73,7 @@ namespace RxPlayground.RxInteractive
     {
         public record State(
             int InstructionPointer,
-            int? ActiveLineNumber);
+            RxInstructionWithLineNumber? NextInstruction);
 
         public RxScenario Scenario { get; }
 
@@ -72,12 +82,13 @@ namespace RxPlayground.RxInteractive
         public IObservable<State> StateObservable => stateSubject;
 
         private readonly object stateLock = new();
-        private readonly BehaviorSubject<State> stateSubject = new(new(0, 0));
+        private readonly BehaviorSubject<State> stateSubject;
 
         public RxScenarioPlayer(RxScenario scenario, ILogger logger)
         {
             Scenario = scenario;
             Session = new RxInteractiveSession(SystemTimeProvider.Instance, logger);
+            stateSubject = new(new(0, scenario.Instructions[0]));
         }
 
         public bool TryStep()
@@ -99,7 +110,7 @@ namespace RxPlayground.RxInteractive
                 stateSubject.OnNext(state with
                 {
                     InstructionPointer = state.InstructionPointer + 1,
-                    ActiveLineNumber = nextInstruction?.LineNumber
+                    NextInstruction = nextInstruction
                 });
 
                 return true;

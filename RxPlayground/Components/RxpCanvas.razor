@@ -16,7 +16,7 @@
                     break;
 
                 case DataFlowEdge.SubscriptionEdge subscriptionEdge:
-                    <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" ZIndex="1" Offset="((DataFlowEdgeId.SubscriptionEdgeId)edge.Key).SequenceNumber * 10">
+                    <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" ZIndex="1" Offset="((DataFlowEdgeId.SubscriptionEdgeId)edge.Key).VisualOffset">
                         @foreach (var emission in subscriptionEdge.Emissions)
                         {
                             <GraphEdgeToken Position="(float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds)">
@@ -41,34 +41,6 @@
             }
         }
     </GraphView>
-
-    <div class="debug-view">
-        <p>Timestamp: @state.Timestamp.ToString("O")</p>
-
-        <p>Nodes:</p>
-        <ul>
-            @foreach (var node in state.Graph.Nodes)
-            {
-                <li>[@node.Key] @node.Value.Value</li>
-            }
-        </ul>
-
-        <p>Edges:</p>
-        <ul>
-            @foreach (var edge in state.Graph.Edges)
-            {
-                <li>
-                    [@edge.Key] @edge.Value.Value (@edge.Value.Source → @edge.Value.Target)
-                    @*<ul>
-                        @foreach (var emission in edge.Value.Value.Emissions)
-                        {
-                            <li>@emission.Timestamp.ToString("O") - @((float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds))</li>
-                        }
-                    </ul>*@
-                </li>
-            }
-        </ul>
-    </div>
 </div>
 
 @code {
