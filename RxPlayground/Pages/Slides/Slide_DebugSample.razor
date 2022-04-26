@@ -1,0 +1,41 @@
+﻿@using System.Reactive.Linq
+@using System.Reactive.Subjects
+
+<CodeSampleSlide Title="Demo" Scenario="scenario">
+    <UI>
+        <button @onclick="@(() => subject.OnNext("X"))">Trigger subject</button>
+    </UI>
+</CodeSampleSlide>
+
+@code {
+    private RxScenario? scenario;
+    private Subject<string> subject;
+
+    protected override void OnInitialized()
+    {
+        scenario = RxScenario.Create(new[]
+        {
+            RxInstruction.DeclareObservable(out subject,
+                new Subject<string>()),
+
+            RxInstruction.DeclareObservable(out var timer,
+                Observable.Timer(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3))),
+
+            RxInstruction.DeclareObservable(out var combined,
+                Observable
+                    .CombineLatest(
+                        subject,
+                        timer,
+                        (str, number) => $"{str}{number}")
+                    .Publish()
+                    .RefCount()),
+
+            RxInstruction.Subscribe(combined),
+
+            RxInstruction.DeclareObservable(out var withFace,
+                combined.Select(str => str + " :)")),
+
+            RxInstruction.Subscribe(withFace)
+    });
+    }
+}

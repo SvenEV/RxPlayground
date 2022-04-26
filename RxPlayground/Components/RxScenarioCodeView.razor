@@ -4,6 +4,7 @@
 <div>
     <div class="controls">
         <button @onclick="() => ScenarioPlayer?.TryStep()">Next Step</button>
+        <button @onclick="() => ScenarioPlayer?.RunToEnd()">Run To End</button>
     </div>
 
     <MonacoEditor Id="@id"
@@ -57,7 +58,8 @@
                 ReadOnly = true,
                 GlyphMargin = true,
                 Language = "csharp",
-                Value = "..."
+                Value = "...",
+                LineNumbersMinChars = 2
             };
 
     private void OnEditorInitialized(MonacoEditorBase editor)

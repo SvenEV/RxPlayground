@@ -69,7 +69,7 @@ namespace RxPlayground.RxInteractive
         }
     }
 
-    public class RxScenarioPlayer
+    public class RxScenarioPlayer : IDisposable
     {
         public record State(
             int InstructionPointer,
@@ -134,6 +134,12 @@ namespace RxPlayground.RxInteractive
                     Session.DeclareSubscription(instr2.Observable);
                     break;
             }
+        }
+
+        public void Dispose()
+        {
+            stateSubject.Dispose();
+            Session.Dispose();
         }
     }
 }

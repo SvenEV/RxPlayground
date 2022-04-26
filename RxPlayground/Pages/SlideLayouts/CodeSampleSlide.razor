@@ -1,0 +1,58 @@
+﻿@inject ILogger<PresentationPage> Logger
+
+<Slide>
+    <div class="slide-root">
+        <span class="title">
+            <h1>@Title</h1>
+        </span>
+
+        <div class="code">
+            @if (player is not null)
+            {
+                <RxScenarioCodeView ScenarioPlayer="player" />
+            }
+        </div>
+
+        <div class="ui">
+            @UI
+        </div>
+
+        <div class="visualization">
+            @if (player is not null)
+            {
+                <RxpCanvas Session="player.Session" />
+            }
+        </div>
+    </div>
+</Slide>
+
+@code {
+    private RxScenarioPlayer? player;
+
+    [Parameter]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? UI { get; set; }
+
+    [Parameter]
+    public RxScenario? Scenario { get; set; }
+
+    public override async Task SetParametersAsync(ParameterView parameters)
+    {
+        var oldScenario = Scenario;
+
+        await base.SetParametersAsync(parameters);
+
+        if (Scenario != oldScenario || player is null)
+        {
+            player?.Dispose();
+            player = null;
+
+            if (Scenario is not null)
+            {
+                player = new(Scenario, Logger);
+            }
+        }
+    }
+}

@@ -1,0 +1,28 @@
+﻿.slide-root {
+    display: grid;
+    gap: 4px;
+    grid-template:
+        "title         title        " auto
+        "code          ui           " minmax(0, 1fr)
+        "visualization visualization" minmax(0, 1fr)
+        / minmax(0, 2fr) minmax(0, 1fr);
+}
+
+    .slide-root .title {
+        grid-area: title;
+    }
+
+    .slide-root .code {
+        grid-area: code;
+    }
+
+    .slide-root .ui {
+        grid-area: ui;
+    }
+
+    .slide-root .visualization {
+        grid-area: visualization;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
+    }

@@ -12,11 +12,13 @@
     background: #1e1e1e;
     display: flex;
     padding-bottom: 2px;
+    gap: 8px;
+    font-size: small;
 }
 
 .controls button {
     background: none;
-    color: white;
+    color: #ddd;
     border: 1px solid transparent;
 }
 

@@ -36,7 +36,7 @@ namespace RxPlayground.RxInteractive
                 EdgeId: Id,
                 Emission: new ObservableEmission.Completed()));
 
-            await Task.Delay(3000);
+            await Task.Delay(RxInteractiveSession.TimelineLength);
             underlyingObserver?.OnCompleted();
         }
 
@@ -46,7 +46,7 @@ namespace RxPlayground.RxInteractive
                 EdgeId: Id,
                 Emission: new ObservableEmission.Error(error)));
 
-            await Task.Delay(3000);
+            await Task.Delay(RxInteractiveSession.TimelineLength);
             underlyingObserver?.OnError(error);
         }
 
@@ -56,7 +56,7 @@ namespace RxPlayground.RxInteractive
                 EdgeId: Id,
                 Emission: new ObservableEmission.Next(value!)));
 
-            await Task.Delay(3000);
+            await Task.Delay(RxInteractiveSession.TimelineLength);
             underlyingObserver?.OnNext(value);
         }
     }

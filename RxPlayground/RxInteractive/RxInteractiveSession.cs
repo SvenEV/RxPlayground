@@ -12,9 +12,9 @@ using RxGraph = RxPlayground.RxInteractive.Graph<
 
 namespace RxPlayground.RxInteractive
 {
-    public class RxInteractiveSession : IIntrospectionCache, IObservable<RxInteractiveSessionState>
+    public class RxInteractiveSession : IIntrospectionCache, IObservable<RxInteractiveSessionState>, IDisposable
     {
-        public static readonly TimeSpan TimelineLength = TimeSpan.FromSeconds(3);
+        public static readonly TimeSpan TimelineLength = TimeSpan.FromSeconds(1);
         public static readonly TimeSpan FrameLength = TimeSpan.FromSeconds(.0167);
 
         private readonly Subject<IInteractiveNode> eventSourceAdditions = new();
@@ -31,6 +31,7 @@ namespace RxPlayground.RxInteractive
                 new RxInteractiveSessionState(
                     Timestamp: timeProvider.GetTimestamp(),
                     InteractiveObservables: ImmutableDictionary<object, IInteractiveObservable>.Empty,
+                    InteractiveSubscriptions: ImmutableList<IInteractiveSubscription>.Empty,
                     Graph: RxGraph.Empty
                 )
             );
@@ -108,6 +109,7 @@ namespace RxPlayground.RxInteractive
             static RxInteractiveSessionState HandleSubscriberCreated(RxInteractiveSessionState state, DateTimeOffset timestamp, RxInteractiveEvent.SubscriberCreated ev) => state with
             {
                 Timestamp = timestamp,
+                InteractiveSubscriptions = state.InteractiveSubscriptions.Add(ev.Subscriber),
                 Graph = state.Graph
                     .AddNodeAndUpstream(ev.Subscriber)
                     .Layout()
@@ -207,21 +209,34 @@ namespace RxPlayground.RxInteractive
 
         bool IIntrospectionCache.ShouldInspect(object observable) => observable.GetType().Name switch
         {
-            //"CombineLatest`3" or "AsObservable`1" or "Eager" /*or "Selector"*/ => false,
+            "CombineLatest`3" or "AsObservable`1" or "Eager" /*or "Selector"*/ => false,
             _ => true
         };
 
         public IDisposable Subscribe(IObserver<RxInteractiveSessionState> observer) => state.Subscribe(observer);
+
+        public void Dispose()
+        {
+            eventSourceAdditions.Dispose();
+            eventSubscription.Dispose();
+            var lastState = state.Value;
+            state.Dispose();
+
+            foreach (var sub in lastState.InteractiveSubscriptions)
+                sub.Dispose();
+        }
     }
 
     public record RxInteractiveSessionState(
         DateTimeOffset Timestamp,
         ImmutableDictionary<object, IInteractiveObservable> InteractiveObservables,
+        ImmutableList<IInteractiveSubscription> InteractiveSubscriptions,
         RxGraph Graph)
     {
         public static readonly RxInteractiveSessionState Empty = new(
             Timestamp: DateTimeOffset.MinValue,
             InteractiveObservables: ImmutableDictionary<object, IInteractiveObservable>.Empty,
+            InteractiveSubscriptions: ImmutableList<IInteractiveSubscription>.Empty,
             Graph: RxGraph.Empty);
     }
 
@@ -248,7 +263,7 @@ namespace RxPlayground.RxInteractive
                     {
                         //if (dict.ContainsKey(node.Key))
                         //    throw new InvalidOperationException("Node visited twice!");
-                        
+
                         dict[node.Key] = p;
 
                         var children = node.Value.OutEdges

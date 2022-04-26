@@ -1,29 +1,23 @@
-﻿.demo-slide {
+﻿.controls {
+    background: #eee;
+    place-self: end center;
+    z-index: 1;
+    opacity: .33;
+    transition: opacity .5s ease-out;
     display: grid;
-    grid-template:
-        "title         title        " auto
-        "code          ui           " minmax(0, 1fr)
-        "visualization visualization" minmax(0, 1fr)
-        / minmax(0, 2fr) minmax(0, 1fr);
-
-    gap: 4px;
+    grid-template-columns: 1fr 1fr 1fr;
+    place-items: center;
+    gap: 8px;
 }
 
-    .demo-slide .title {
-        grid-area: title;
+    .controls:hover {
+        opacity: 1;
+        transition: opacity .5s ease-out;
     }
 
-    .demo-slide .code {
-        grid-area: code;
-    }
-
-    .demo-slide .ui {
-        grid-area: ui;
-    }
-
-    .demo-slide .visualization {
-        grid-area: visualization;
-        display: grid;
-        grid-template-rows: minmax(0, 1fr);
-        grid-template-columns: minmax(0, 1fr);
-    }
+.controls button {
+    background: none;
+    border: none;
+    width: 40px;
+    height: 40px;
+}

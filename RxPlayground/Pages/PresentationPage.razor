@@ -1,59 +1,40 @@
-﻿@page "/"
-@using System.Reactive.Linq
-@using System.Reactive.Subjects
-
-@inject ILogger<PresentationPage> Logger
+﻿@page "/{SlideIndex:int?}"
+@inject NavigationManager NavigationManager
 
 <Presentation>
-    <Slide>
-        <div class="demo-slide">
-            <span class="title">
-                <h1>Hello world</h1>
-            </span>
+    @switch (SlideIndex)
+    {
+        case 0:
+            <Slide_DebugSample />
+            break;
 
-            <div class="code">
-                <RxScenarioCodeView ScenarioPlayer="player" />
-            </div>
-
-            <div class="ui"></div>
-
-            <div class="visualization">
-                <RxpCanvas Session="player!.Session" />
-            </div>
-        </div>
-    </Slide>
+        default:
+            <Slide>
+                No content.
+            </Slide>
+            break;
+    }
 </Presentation>
 
+<div class="controls">
+    <button @onclick="GoToPreviousSlide">←</button>
+    <span>@SlideIndex</span>
+    <button @onclick="GoToNextSlide">→</button>
+</div>
+
 @code {
-    private RxScenarioPlayer? player;
+    [Parameter]
+    public int SlideIndex { get; set; } = 0;
 
-    protected override void OnInitialized()
+    private void GoToNextSlide()
     {
-        var scenario = RxScenario.Create(new[]
-        {
-            RxInstruction.DeclareObservable(out var subject,
-                new Subject<string>()),
+        SlideIndex++;
+        NavigationManager.NavigateTo($"/{SlideIndex}");
+    }
 
-            RxInstruction.DeclareObservable(out var timer,
-                Observable.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1))),
-
-            RxInstruction.DeclareObservable(out var combined,
-                Observable
-                    .CombineLatest(
-                        subject,
-                        timer,
-                        (str, number) => $"{str}{number}")
-                    .Publish()
-                    .RefCount()),
-
-            RxInstruction.Subscribe(combined),
-
-            RxInstruction.DeclareObservable(out var withFace,
-                combined.Select(str => str + " :)")),
-
-            RxInstruction.Subscribe(withFace)
-        });
-
-        player = new RxScenarioPlayer(scenario, Logger);
+    private void GoToPreviousSlide()
+    {
+        SlideIndex = Math.Max(0, SlideIndex - 1);
+        NavigationManager.NavigateTo($"/{SlideIndex}");
     }
 }
