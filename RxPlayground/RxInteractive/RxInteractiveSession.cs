@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Numerics;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -151,17 +150,35 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        public void DeclareSubscription<T>(IObservable<T> observable)
+        public void DeclareObservable(object observable)
+        {
+            var observableInstrumented = Introspection.InjectInspector(observable, this);
+
+            if (observableInstrumented.ObservableRaw is IInteractiveObservablePort port)
+            {
+                HandleEvent(new Timestamped<RxInteractiveEvent>(
+                    new RxInteractiveEvent.ObservableCreated(port.Owner),
+                    TimeProvider.GetTimestamp()
+                ));
+            }
+        }
+
+        public void DeclareSubscription(object observable)
         {
             var observableInstrumented = Introspection.InjectInspector(observable, this);
 
             if (observableInstrumented.Upstreams.Count != 1)
                 throw new InvalidOperationException("Cannot subscribe to an observable with multiple upstreams");
 
-            if (observableInstrumented.Upstreams[0] is not IInteractiveObservablePort<T> upstream)
+            var observableElementType = Introspection.GetObservableElementType(observable);
+            var upstreamElementType = Introspection.GetObservableElementType(observableInstrumented.Upstreams[0]);
+
+            if (upstreamElementType != observableElementType)
                 throw new InvalidOperationException("Cannot subscribe if upstream is not of type T");
 
-            var subscription = new InteractiveSubscription<T>(upstream);
+            var subscription = (IInteractiveSubscription)Activator.CreateInstance(
+                typeof(InteractiveSubscription<>).MakeGenericType(observableElementType),
+                observableInstrumented.Upstreams[0])!;
 
             HandleEvent(new Timestamped<RxInteractiveEvent>(
                 new RxInteractiveEvent.SubscriberCreated(subscription),

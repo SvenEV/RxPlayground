@@ -4,7 +4,7 @@
 
 <div class="graph-view" @onpointerdown="OnPointerDown" @onpointerup="OnPointerUp" @onpointermove="OnPointerMove" @ref="element">
     <BECanvas @ref="canvas" Width="800" Height="600" />
-    <div class="zero" style="--x: @(translation.X)px; --y: @(translation.Y)px" @onpointerdown:stopPropagation>
+    <div class="zero" style="@css" @onpointerdown:stopPropagation>
         <CascadingValue Value="this">
             @ChildContent
         </CascadingValue>
@@ -21,6 +21,8 @@
 
     private BECanvasComponent? canvas;
     private Canvas2DContext? canvasContext;
+
+    private string css => FormattableString.Invariant($"--x: {translation.X}px; --y: {translation.Y}px;");
 
     private record DragOperation(
         Vector2 OriginalTranslation,

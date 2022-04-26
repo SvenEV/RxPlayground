@@ -1,7 +1,48 @@
 ﻿@page "/present"
+@using System.Reactive.Linq
+@using System.Reactive.Subjects
+
+@inject ILogger<PresentationPage> Logger
 
 <Presentation>
     <Slide>
         <h1>Hello world</h1>
+        <button @onclick="() => player!.TryStep()">Next Step</button>
+        <RxpCanvas Session="player!.Session" />
+        <pre>@player!.Scenario.FullCode</pre>
     </Slide>
 </Presentation>
+
+@code {
+    private RxScenarioPlayer? player;
+
+    protected override void OnInitialized()
+    {
+        var scenario = RxScenario.Create(new[]
+        {
+            RxInstruction.DeclareObservable("subject", out var subject,
+                new Subject<string>()),
+
+            RxInstruction.DeclareObservable("timer", out var timer,
+                Observable.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1))),
+
+            RxInstruction.DeclareObservable("combined", out var combined,
+                Observable
+                    .CombineLatest(
+                        subject,
+                        timer,
+                        (str, number) => $"{str}{number}")
+                    .Publish()
+                    .RefCount()),
+
+            RxInstruction.Subscribe(combined),
+
+            RxInstruction.DeclareObservable("withFace", out var withFace,
+                combined.Select(str => str + " :)")),
+
+            RxInstruction.Subscribe(withFace),
+        });
+
+        player = new RxScenarioPlayer(scenario, Logger);
+    }
+}
