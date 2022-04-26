@@ -1,1 +1,29 @@
-﻿
+﻿.demo-slide {
+    display: grid;
+    grid-template:
+        "title         title        " auto
+        "code          ui           " minmax(0, 1fr)
+        "visualization visualization" minmax(0, 1fr)
+        / minmax(0, 2fr) minmax(0, 1fr);
+
+    gap: 4px;
+}
+
+    .demo-slide .title {
+        grid-area: title;
+    }
+
+    .demo-slide .code {
+        grid-area: code;
+    }
+
+    .demo-slide .ui {
+        grid-area: ui;
+    }
+
+    .demo-slide .visualization {
+        grid-area: visualization;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
+    }

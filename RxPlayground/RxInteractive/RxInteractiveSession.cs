@@ -207,7 +207,7 @@ namespace RxPlayground.RxInteractive
 
         bool IIntrospectionCache.ShouldInspect(object observable) => observable.GetType().Name switch
         {
-            "CombineLatest`3" or "AsObservable`1" or "Eager" /*or "Selector"*/ => false,
+            //"CombineLatest`3" or "AsObservable`1" or "Eager" /*or "Selector"*/ => false,
             _ => true
         };
 
@@ -355,6 +355,7 @@ namespace RxPlayground.RxInteractive
             DataFlowNodeId TargetId,
             int SequenceNumber) : DataFlowEdgeId
         {
+            public int VisualOffset => (SequenceNumber % 2 * 2 - 1) * (SequenceNumber / 2) * 10;
             public override string ToString() => $"SubscriptionEdge({SourceId} → {TargetId} | {SequenceNumber})";
         }
     }
