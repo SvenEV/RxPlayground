@@ -20,13 +20,14 @@
         <div class="visualization">
             @if (player is not null)
             {
-                <RxpCanvas Session="player.Session" />
+                <RxpCanvas @ref="visualization" Session="player.Session" />
             }
         </div>
     </div>
 </Slide>
 
 @code {
+    private RxpCanvas? visualization;
     private RxScenarioPlayer? player;
 
     [Parameter]

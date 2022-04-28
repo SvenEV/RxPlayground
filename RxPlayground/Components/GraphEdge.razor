@@ -1,4 +1,6 @@
-﻿<CascadingValue Value="this">
+﻿@implements IDisposable
+
+<CascadingValue Value="this">
     @ChildContent
 </CascadingValue>
 
@@ -65,5 +67,11 @@
             if (Id is not null)
                 Graph?.AddEdge(Id, this);
         }
+    }
+
+    public void Dispose()
+    {
+        if (Id is not null)
+            Graph?.RemoveEdge(Id);
     }
 }

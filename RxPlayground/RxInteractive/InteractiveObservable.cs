@@ -44,6 +44,8 @@ namespace RxPlayground.RxInteractive
 
         public DataFlowNodeId AggregateNodeId { get; }
 
+        public VisualOptions VisualOptions { get; }
+
         public ImmutableList<IInteractiveObservablePort> Upstreams { get; }
 
         public IReadOnlyList<IInteractiveObservablePort> Downstreams => downstreams;
@@ -57,6 +59,8 @@ namespace RxPlayground.RxInteractive
         public InteractiveObservable(IObservable<T> source, ImmutableList<IInteractiveObservablePort> upstreams)
         {
             UnderlyingObservable = source;
+
+            VisualOptions = source is IVisualizerObservable visualizerObservable ? visualizerObservable.VisualOptions : new(source.GetType().Name);
 
             AggregateNodeId = new DataFlowNodeId(this);
 
@@ -83,7 +87,7 @@ namespace RxPlayground.RxInteractive
 
         IInteractiveObservablePort IInteractiveObservable.AddDownstream() => AddDownstream();
 
-        public override string ToString() => UnderlyingObservable.GetType().Name;
+        public override string ToString() => VisualOptions.Name;
     }
 
 
@@ -147,8 +151,7 @@ namespace RxPlayground.RxInteractive
                 {
                     subscription.Dispose();
 
-                    eventsSubject.OnNext(new RxInteractiveEvent.Unsubscribed(
-                        EdgeId: edgeId));
+                    eventsSubject.OnNext(new RxInteractiveEvent.Unsubscribed(EdgeId: edgeId));
 
                     lock (observersSubject)
                         observersSubject.OnNext(observersSubject.Value.Remove(wrappedObserver));

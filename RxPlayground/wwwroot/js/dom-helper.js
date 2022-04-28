@@ -9,3 +9,7 @@ export function setPointerCapture(targetElement, pointerId) {
 export function releasePointerCapture(targetElement, pointerId) {
     targetElement.releasePointerCapture(pointerId);
 }
+
+export function getElementSize(element) {
+    return element ? [element.offsetWidth, element.offsetHeight] : [0, 0];
+}

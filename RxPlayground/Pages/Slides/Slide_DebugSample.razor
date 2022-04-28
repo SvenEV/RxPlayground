@@ -3,23 +3,27 @@
 
 <CodeSampleSlide Title="Demo" Scenario="scenario">
     <UI>
-        <button @onclick="@(() => subject.OnNext("X"))">Trigger subject</button>
+        <button @onclick="@(() => subject?.OnNext("X"))">Trigger subject</button>
+        <button @onclick="@(() => subject?.OnCompleted())">OnCompleted()</button>
+        <button @onclick="@(() => subject?.OnError(new InvalidOperationException()))">OnError()</button>
     </UI>
 </CodeSampleSlide>
 
 @code {
     private RxScenario? scenario;
-    private Subject<string> subject;
+    private ISubject<string>? subject;
 
     protected override void OnInitialized()
     {
         scenario = RxScenario.Create(new[]
         {
             RxInstruction.DeclareObservable(out subject,
-                new Subject<string>()),
+                new Subject<string>()
+                    .Visualize("Subject")),
 
             RxInstruction.DeclareObservable(out var timer,
-                Observable.Timer(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3))),
+                Observable.Timer(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3))
+                    .Visualize("Timer")),
 
             RxInstruction.DeclareObservable(out var combined,
                 Observable
@@ -27,15 +31,18 @@
                         subject,
                         timer,
                         (str, number) => $"{str}{number}")
+                    .Visualize("CombineLatest")
                     .Publish()
-                    .RefCount()),
+                    .Visualize("Publish")
+                    .RefCount()
+                    .Visualize("RefCount")),
 
             RxInstruction.Subscribe(combined),
 
             RxInstruction.DeclareObservable(out var withFace,
-                combined.Select(str => str + " :)")),
+                combined.Select(str => str + " :)").Visualize("Select")),
 
             RxInstruction.Subscribe(withFace)
-    });
+        });
     }
 }

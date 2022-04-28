@@ -1,10 +1,12 @@
 ﻿@implements IDisposable
 
 <div class="rxp-canvas">
-    <GraphView>
+    <GraphView @ref="graphView">
         @foreach (var node in state.Graph.Nodes)
         {
-            <GraphNode Id="node.Key" Position="node.Value.Value.Position">@node.Value.Value</GraphNode>
+            <GraphNode Id="node.Key" @key="node.Key"
+                   Position="node.Value.Value.Position"
+                   Size="node.Value.Value.Options.Size">@node.Value.Value</GraphNode>
         }
 
         @foreach (var edge in state.Graph.Edges)
@@ -12,11 +14,11 @@
             @switch (edge.Value.Value)
             {
                 case DataFlowEdge.StaticEdge staticEdge:
-                    <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" Color="#eee" Width="25" />
+                    <GraphEdge Id="edge.Key" @key="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" Color="#eee" Width="25" />
                     break;
 
                 case DataFlowEdge.SubscriptionEdge subscriptionEdge:
-                    <GraphEdge Id="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" ZIndex="1" Offset="((DataFlowEdgeId.SubscriptionEdgeId)edge.Key).VisualOffset">
+                    <GraphEdge Id="edge.Key" @key="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" ZIndex="1" Offset="((DataFlowEdgeId.SubscriptionEdgeId)edge.Key).VisualOffset">
                         @foreach (var emission in subscriptionEdge.Emissions)
                         {
                             <GraphEdgeToken Position="(float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds)">
@@ -41,11 +43,20 @@
             }
         }
     </GraphView>
+
+    <label style="place-self: end start; margin-left: 4px; font-size: small;">
+        <EditForm Model="this">
+            <InputCheckbox @bind-Value="isZoomToFitEnabled" />
+            Zoom to Fit
+        </EditForm>
+    </label>
 </div>
 
 @code {
+    private GraphView? graphView;
     private IDisposable? sessionSubscription;
     private RxInteractiveSessionState state = RxInteractiveSessionState.Empty;
+    private bool isZoomToFitEnabled = true;
 
     [Parameter]
     public RxInteractiveSession? Session { get; set; }
@@ -59,10 +70,12 @@
         if (Session != oldSession)
         {
             sessionSubscription?.Dispose();
-            sessionSubscription = Session?.Subscribe(newState =>
+            sessionSubscription = Session?.Subscribe(async newState =>
             {
                 state = newState;
-                InvokeAsync(StateHasChanged);
+                if (graphView is not null && isZoomToFitEnabled)
+                    await graphView.ZoomToFitAsync();
+                await InvokeAsync(StateHasChanged);
             });
         }
     }

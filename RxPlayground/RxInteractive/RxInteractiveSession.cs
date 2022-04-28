@@ -81,6 +81,7 @@ namespace RxPlayground.RxInteractive
                     RxInteractiveEvent.ObservableCreated e => HandleObservableCreated(state.Value, ev.Timestamp, e),
                     RxInteractiveEvent.SubscriberCreated e => HandleSubscriberCreated(state.Value, ev.Timestamp, e),
                     RxInteractiveEvent.Subscribed e => HandleSubscribed(state.Value, ev.Timestamp, e),
+                    RxInteractiveEvent.Unsubscribed e => HandleUnsubscribed(state.Value, ev.Timestamp, e),
                     RxInteractiveEvent.ValueEmitted e => HandleValueEmitted(state.Value, ev.Timestamp, e),
                     _ => throw new NotImplementedException($"{nameof(RxInteractiveEvent)}.{ev.GetType().Name}")
                 });
@@ -125,6 +126,14 @@ namespace RxPlayground.RxInteractive
                         source: ev.EdgeId.SourceId,
                         target: ev.EdgeId.TargetId
                     )
+                    .Layout()
+            };
+
+            static RxInteractiveSessionState HandleUnsubscribed(RxInteractiveSessionState state, DateTimeOffset timestamp, RxInteractiveEvent.Unsubscribed ev) => state with
+            {
+                Timestamp = timestamp,
+                Graph = state.Graph
+                    .RemoveEdge(ev.EdgeId)
                     .Layout()
             };
 
@@ -207,11 +216,8 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        bool IIntrospectionCache.ShouldInspect(object observable) => observable.GetType().Name switch
-        {
-            //"CombineLatest`3" or "AsObservable`1" or "Eager" /*or "Selector"*/ => false,
-            _ => true
-        };
+        bool IIntrospectionCache.ShouldInspect(object observable) =>
+            observable is IVisualizerObservable or IInteractiveSubscription;
 
         public IDisposable Subscribe(IObserver<RxInteractiveSessionState> observer) => state.Subscribe(observer);
 
@@ -303,7 +309,7 @@ namespace RxPlayground.RxInteractive
             static (RxGraph NewGraph, bool NewNodeCreated) AddRecursively(RxGraph graph, IInteractiveNode node)
             {
                 var newNodeCreated = !graph.Nodes.ContainsKey(node.AggregateNodeId);
-                graph = graph.TryAddNode(node.AggregateNodeId, new DataFlowNode(node.ToString()!, Vector2.Zero));
+                graph = graph.TryAddNode(node.AggregateNodeId, new DataFlowNode(node.VisualOptions, Vector2.Zero));
 
                 foreach (var upstreamNode in node.Upstreams)
                 {
@@ -321,6 +327,13 @@ namespace RxPlayground.RxInteractive
 
                 return (graph, newNodeCreated);
             }
+        }
+
+        public static Vector4 GetBoundingBox(this RxGraph graph)
+        {
+            var min = graph.Nodes.Select(n => n.Value.Value.Position - (n.Value.Value.Options.Size / 2) * Vector2.One).Min();
+            var max = graph.Nodes.Select(n => n.Value.Value.Position + (n.Value.Value.Options.Size / 2) * Vector2.One).Max();
+            return new(min.X, min.Y, max.X - min.X, max.Y - min.Y);
         }
     }
 
@@ -341,9 +354,9 @@ namespace RxPlayground.RxInteractive
         DateTimeOffset Timestamp,
         ObservableEmission Emission);
 
-    public record DataFlowNode(string DisplayName, Vector2 Position)
+    public record DataFlowNode(VisualOptions Options, Vector2 Position)
     {
-        public override string ToString() => DisplayName;
+        public override string ToString() => Options.Name;
     }
 
     public record DataFlowNodeId(IInteractiveNode Identity)

@@ -1,4 +1,6 @@
-﻿@if (Id is not null)
+﻿@implements IDisposable
+
+@if (Id is not null)
 {
     <div class="graph-node" style="left: @(Position.X)px; top: @(Position.Y)px; width: @(Size)px; height: @(Size)px;">
         @ChildContent
@@ -35,5 +37,11 @@
             if (Id is not null)
                 Graph?.AddNode(Id, this);
         }
+    }
+
+    public void Dispose()
+    {
+        if (Id is not null)
+            Graph?.RemoveEdge(Id);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using System.Numerics;
 
 namespace RxPlayground.Lib
 {
@@ -22,6 +23,12 @@ namespace RxPlayground.Lib
         public async Task ReleasePointerCaptureAsync(ElementReference targetElement, long pointerId)
         {
             await this.InvokeVoidAsync("releasePointerCapture", targetElement, pointerId);
+        }
+
+        public async Task<Vector2> GetElementSizeAsync(ElementReference element)
+        {
+            var size = await this.InvokeAsync<float[]>("getElementSize", element);
+            return new(size[0], size[1]);
         }
     }
 }

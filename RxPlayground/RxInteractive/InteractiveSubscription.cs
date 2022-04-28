@@ -14,13 +14,15 @@ namespace RxPlayground.RxInteractive
         void Subscribe();
     }
 
-    public class InteractiveSubscription<T> : IInteractiveSubscription
+    public class InteractiveSubscription<T> : IInteractiveSubscription, IObserver<T>
     {
         private readonly Subject<RxInteractiveEvent> eventsSubject = new();
         private readonly InteractiveObserver<T> observer;
         private IDisposable? subscription;
 
         public DataFlowNodeId AggregateNodeId { get; }
+
+        public VisualOptions VisualOptions { get; }
 
         public IInteractiveObservablePort<T> Upstream { get; }
 
@@ -34,13 +36,14 @@ namespace RxPlayground.RxInteractive
         public InteractiveSubscription(IInteractiveObservablePort<T> upstream)
         {
             AggregateNodeId = new DataFlowNodeId(this);
+            VisualOptions = new("Subscription");
             Upstream = upstream;
             Upstreams = ImmutableList.Create<IInteractiveObservablePort>(Upstream);
 
             Upstream.SetTarget(this);
 
             var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(upstream.Owner.AggregateNodeId, AggregateNodeId, 0);
-            observer = new InteractiveObserver<T>(edgeId);
+            observer = new InteractiveObserver<T>(edgeId, this);
 
             Events = observer.Events.Merge(eventsSubject);
         }
@@ -63,5 +66,11 @@ namespace RxPlayground.RxInteractive
         }
 
         public override string ToString() => "Subscription";
+
+        public void OnCompleted() => subscription?.Dispose();
+
+        public void OnError(Exception error) => subscription?.Dispose();
+
+        public void OnNext(T value) { }
     }
 }

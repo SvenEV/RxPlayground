@@ -4,6 +4,7 @@
     grid-template-rows: minmax(0, 1fr);
 }
 
-.rxp-canvas > .debug-view {
-    border: 2px solid yellow;
+.rxp-canvas ::deep > * {
+    grid-row: 1;
+    grid-column: 1;
 }
