@@ -38,6 +38,7 @@ namespace RxPlayground.RxInteractive
     {
         public record DeclareObservableInstruction(string Name, object Observable, string Code) : RxInstruction(Code);
         public record SubscribeInstruction(object Observable, object Observer, Action<IDisposable> OnSubscribed, string Code) : RxInstruction(Code);
+        public record UnsubscribeInstruction(Func<IDisposable> GetSubscription, string Code) : RxInstruction(Code);
 
         public static RxInstruction DeclareObservable<T>(out T observableOutput, T observable,
             [CallerArgumentExpression("observableOutput")] string varNameExpression = "",
@@ -90,6 +91,12 @@ namespace RxPlayground.RxInteractive
                 observer,
                 onSubscribed,
                 $"var {subscriptionVarName} = {observableVarName}.Subscribe({onNextExpression});");
+        }
+
+        public static RxInstruction Unsubscribe(Func<IDisposable> getSubscription, [CallerArgumentExpression("subscription")] string getSubscriptionExpression = "")
+        {
+            var subscriptionVarName = Regex.Replace(getSubscriptionExpression, "^.*=>\\s*", "");
+            return new UnsubscribeInstruction(getSubscription, $"{subscriptionVarName}.Dispose();");
         }
     }
 
@@ -156,6 +163,10 @@ namespace RxPlayground.RxInteractive
 
                 case RxInstruction.SubscribeInstruction instr2:
                     Session.DeclareSubscription(instr2.Observable, instr2.Observer, instr2.OnSubscribed);
+                    break;
+
+                case RxInstruction.UnsubscribeInstruction instr3:
+                    instr3.GetSubscription().Dispose();
                     break;
             }
         }

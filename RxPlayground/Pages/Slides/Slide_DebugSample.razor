@@ -44,7 +44,9 @@
             RxInstruction.DeclareObservable(out var withFace,
                 combined.Select(str => str + " :)").Visualize("Select")),
 
-            RxInstruction.Subscribe(d => subscription2 = d, withFace, x => { })
+            RxInstruction.Subscribe(d => subscription2 = d, withFace, x => { }),
+
+            RxInstruction.Unsubscribe(() => subscription2)
     });
     }
 }
