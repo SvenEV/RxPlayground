@@ -1,0 +1,42 @@
+﻿<ContentSlide Title="Reactive Extensions / ReactiveX / Rx">
+    <p>
+        Brings <i>reactive programming</i> to languages lacking native support for it.
+    </p>
+    <p>
+        <i>RxJava, RxJS, Rx.NET, RxScala, RxClojure, RxCpp, RxLua, Rx.rb, RxPY, RxGo, RxKotlin, RxSwift, RxPHP, ...</i>
+    </p>
+
+    <p>
+        <b>Why Rx?</b>
+        <ul>
+            <li>Complex behaviors can often be expressed in few lines of code</li>
+            <li>Robust, thread-safe code</li>
+            <li>Clear, easy-to-follow data flows</li>
+        </ul>
+    </p>
+
+    <p>
+        <b>Main Abstractions</b>
+        <ul>
+            <li><code>Observable</code> – (asynchronous) data stream, producer, publisher</li>
+            <li><code>Observer</code> – consumer, subscriber, event handler</li>
+        </ul>
+    </p>
+    <p>
+        <code>Observables</code> emit 3 types of events: <i>Next</i>, <i>Error</i>, <i>Complete</i>.
+        <ul>
+            <li>With <i>Next</i> events, <code>Observables</code> <i>push</i> data to all subscribed <code>Observers</code>.</li>
+            <li>With <i>Complete</i> events, <code>Observables</code> notify <code>Observers</code> that the data stream terminated gracefully.</li>
+            <li>With <i>Error</i> events, <code>Observables</code> notify <code>Observers</code> that the data stream terminated with an error.</li>
+        </ul>
+    </p>
+
+    <p>
+        <b>Comparison with Related Concepts</b>
+        <ul>
+            <li>Iterators/Enumerators (in C#: <code>IEnumerable&lt;T&gt;</code>) – <i>pull</i>-based data stream</li>
+            <li>Tasks/Promises/Futures (in C#: <code>Task&lt;T&gt;</code>) – data streams that asynchronously produce exactly 1 result</li>
+            <li>Event Emitters (in C#: <code>event</code> keyword) – conceptually similar, but not a "first-class citizen" in C#, and usually not very composable</li>
+        </ul>
+    </p>
+</ContentSlide>

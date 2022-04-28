@@ -1,0 +1,16 @@
+﻿.slide-root {
+    display: grid;
+    gap: 4px;
+    grid-template:
+        "title  " auto
+        "content" minmax(0, 1fr)
+        / minmax(0, 1fr);
+}
+
+    .slide-root .title {
+        grid-area: title;
+    }
+
+    .slide-root .content {
+        grid-area: content;
+    }

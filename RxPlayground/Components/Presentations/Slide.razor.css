@@ -7,3 +7,19 @@
     grid-template-rows: minmax(0, 1fr);
     grid-template-columns: minmax(0, 1fr);
 }
+
+.slide ::deep > * {
+    grid-row: 1;
+    grid-column: 1;
+}
+
+.logo {
+    background-image: url('/img/slides/CodingMates.png');
+    width: 150px;
+    height: 150px;
+    background-size: contain;
+    background-position: bottom;
+    background-repeat: no-repeat;
+    place-self: end;
+    transform: translateY(12px);
+}

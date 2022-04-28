@@ -1,18 +1,17 @@
 ﻿@page "/{SlideIndex:int?}"
+@using System.Collections.Immutable
 @inject NavigationManager NavigationManager
 
 <Presentation>
-    @switch (SlideIndex)
+    @if (SlideIndex >= 0 && SlideIndex < slides.Count)
     {
-        case 0:
-            <Slide_DebugSample />
-            break;
-
-        default:
-            <Slide>
-                No content.
-            </Slide>
-            break;
+        <DynamicComponent Type="slides[SlideIndex]" />
+    }
+    else
+    {
+        <TitleSlide>
+            <h1>That's it!</h1>
+        </TitleSlide>
     }
 </Presentation>
 
@@ -23,6 +22,15 @@
 </div>
 
 @code {
+    private static readonly ImmutableList<Type> slides = ImmutableList.Create(
+        typeof(A1_Title),
+        typeof(A2_ReactiveProgramming),
+        typeof(A3_ReactiveProgramming_Examples_Excel),
+        typeof(A4_ReactiveProgramming_Examples_Svelte),
+        typeof(A5_Rx),
+        typeof(S1_DebugSample)
+    );
+
     [Parameter]
     public int SlideIndex { get; set; } = 0;
 

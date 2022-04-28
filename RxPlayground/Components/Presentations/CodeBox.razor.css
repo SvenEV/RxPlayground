@@ -1,0 +1,11 @@
+﻿div {
+    border: 2px solid gray;
+    padding: 8px 12px;
+}
+
+pre {
+    white-space: pre-line;
+    margin-top: -1.5em;
+    margin-bottom: 0;
+    padding: 0;
+}

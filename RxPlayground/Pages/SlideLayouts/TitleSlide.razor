@@ -1,0 +1,10 @@
+﻿<Slide>
+    <div>
+        @ChildContent
+    </div>
+</Slide>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

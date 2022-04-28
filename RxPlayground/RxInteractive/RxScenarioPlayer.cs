@@ -93,7 +93,7 @@ namespace RxPlayground.RxInteractive
                 $"var {subscriptionVarName} = {observableVarName}.Subscribe({onNextExpression});");
         }
 
-        public static RxInstruction Unsubscribe(Func<IDisposable> getSubscription, [CallerArgumentExpression("subscription")] string getSubscriptionExpression = "")
+        public static RxInstruction Unsubscribe(Func<IDisposable> getSubscription, [CallerArgumentExpression("getSubscription")] string getSubscriptionExpression = "")
         {
             var subscriptionVarName = Regex.Replace(getSubscriptionExpression, "^.*=>\\s*", "");
             return new UnsubscribeInstruction(getSubscription, $"{subscriptionVarName}.Dispose();");

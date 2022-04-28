@@ -1,11 +1,11 @@
 ﻿.slide-root {
     display: grid;
-    gap: 4px;
+    gap: 12px;
     grid-template:
         "title         title        " auto
-        "code          ui           " minmax(0, 1fr)
-        "visualization visualization" minmax(0, 1fr)
-        / minmax(0, 2fr) minmax(0, 1fr);
+        "code          ui           " minmax(0, 2fr)
+        "visualization visualization" minmax(0, 3fr)
+        / minmax(0, 3fr) minmax(0, 2fr);
 }
 
     .slide-root .title {

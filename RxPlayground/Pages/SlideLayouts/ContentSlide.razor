@@ -1,0 +1,18 @@
+﻿<Slide>
+    <div class="slide-root">
+        <span class="title">
+            <h1>@Title</h1>
+        </span>
+        <div class="content">
+            @ChildContent
+        </div>
+    </div>
+</Slide>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
