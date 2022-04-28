@@ -33,9 +33,9 @@
             .RefCount()
             .Visualize("RefCount");
 
-        session.DeclareSubscription(subject);
-        session.DeclareSubscription(combined);
-        session.DeclareSubscription(combined.Select(str => str + " :)"));
+        //session.DeclareSubscription(subject);
+        //session.DeclareSubscription(combined);
+        //session.DeclareSubscription(combined.Select(str => str + " :)"));
 
         Task.Run(async () =>
         {

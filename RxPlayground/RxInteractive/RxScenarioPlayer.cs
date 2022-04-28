@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Reactive;
 using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -36,7 +37,7 @@ namespace RxPlayground.RxInteractive
     public abstract record RxInstruction(string Code)
     {
         public record DeclareObservableInstruction(string Name, object Observable, string Code) : RxInstruction(Code);
-        public record SubscribeInstruction(object Observable, string Code) : RxInstruction(Code);
+        public record SubscribeInstruction(object Observable, object Observer, Action<IDisposable> OnSubscribed, string Code) : RxInstruction(Code);
 
         public static RxInstruction DeclareObservable<T>(out T observableOutput, T observable,
             [CallerArgumentExpression("observableOutput")] string varNameExpression = "",
@@ -53,29 +54,42 @@ namespace RxPlayground.RxInteractive
                 Observable: observable,
                 Code: $"var {name} = {code};");
 
+            static string FixIndentAndRemoveVisualizeCalls(string code)
+            {
+                var lines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+                    .Select(line => RemoveVisualizeCall(line))
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .ToList();
+
+                var commonIndentation = (lines.Count == 1) ? 0 : lines.Skip(1).Min(line => line.TakeWhile(c => c == ' ').Count());
+
+                return string.Join("\n", lines
+                    .Skip(1)
+                    .Select(line => "    " + line[commonIndentation..])
+                    .Prepend(lines[0]));
+            }
+
+            static string RemoveVisualizeCall(string line) =>
+                Regex.Replace(line, "\\.Visualize\\(.*", "");
         }
 
-        private static string FixIndentAndRemoveVisualizeCalls(string code)
+        public static RxInstruction Subscribe<T>(
+            Action<IDisposable> onSubscribed,
+            IObservable<T> observable,
+            Action<T> onNext,
+            [CallerArgumentExpression("onSubscribed")] string onSubscribedExpression = "",
+            [CallerArgumentExpression("observable")] string observableVarName = "",
+            [CallerArgumentExpression("onNext")] string onNextExpression = "")
         {
-            var lines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
-                .Select(line => RemoveVisualizeCall(line))
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ToList();
+            var observer = Observer.Create(onNext, _ => { }, () => { });
 
-            var commonIndentation = (lines.Count == 1) ? 0 : lines.Skip(1).Min(line => line.TakeWhile(c => c == ' ').Count());
-                
-            return string.Join("\n", lines
-                .Skip(1)
-                .Select(line => "    " + line[commonIndentation..])
-                .Prepend(lines[0]));
-        }
+            var subscriptionVarName = Regex.Replace(onSubscribedExpression, "^.*=>\\s*(\\w+)\\s*=\\s*.*$", "$1").Trim();
 
-        private static string RemoveVisualizeCall(string line) =>
-            Regex.Replace(line, "\\.Visualize\\(.*", "");
-
-        public static RxInstruction Subscribe(object observable, [CallerArgumentExpression("observable")] string variable = "")
-        {
-            return new SubscribeInstruction(observable, $"{variable}.Subscribe(/* ... */);");
+            return new SubscribeInstruction(
+                observable,
+                observer,
+                onSubscribed,
+                $"var {subscriptionVarName} = {observableVarName}.Subscribe({onNextExpression});");
         }
     }
 
@@ -141,7 +155,7 @@ namespace RxPlayground.RxInteractive
                     break;
 
                 case RxInstruction.SubscribeInstruction instr2:
-                    Session.DeclareSubscription(instr2.Observable);
+                    Session.DeclareSubscription(instr2.Observable, instr2.Observer, instr2.OnSubscribed);
                     break;
             }
         }

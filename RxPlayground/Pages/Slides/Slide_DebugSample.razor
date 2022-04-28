@@ -12,6 +12,8 @@
 @code {
     private RxScenario? scenario;
     private ISubject<string>? subject;
+    private IDisposable? subscription1;
+    private IDisposable? subscription2;
 
     protected override void OnInitialized()
     {
@@ -37,12 +39,12 @@
                     .RefCount()
                     .Visualize("RefCount")),
 
-            RxInstruction.Subscribe(combined),
+            RxInstruction.Subscribe(d => subscription1 = d, combined, x => { }),
 
             RxInstruction.DeclareObservable(out var withFace,
                 combined.Select(str => str + " :)").Visualize("Select")),
 
-            RxInstruction.Subscribe(withFace)
-        });
+            RxInstruction.Subscribe(d => subscription2 = d, withFace, x => { })
+    });
     }
 }

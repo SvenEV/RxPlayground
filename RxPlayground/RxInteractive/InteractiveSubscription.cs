@@ -16,6 +16,8 @@ namespace RxPlayground.RxInteractive
     public class InteractiveSubscription<T> : IInteractiveSubscription, IObserver<T>
     {
         private readonly Subject<RxInteractiveEvent> eventsSubject = new();
+        private readonly IObserver<T>? underlyingObserver;
+        private readonly Action<IDisposable>? onSubscribe;
         private IDisposable? subscription;
 
         public DataFlowNodeId AggregateNodeId { get; }
@@ -31,11 +33,13 @@ namespace RxPlayground.RxInteractive
         IInteractiveObservablePort IInteractiveSubscription.TargetPort => Upstream;
 
 
-        public InteractiveSubscription(IInteractiveObservablePort<T> upstream)
+        public InteractiveSubscription(IInteractiveObservablePort<T> upstream, IObserver<T>? underlyingObserver = null, Action<IDisposable>? onSubscribe = null)
         {
             AggregateNodeId = new DataFlowNodeId(this);
             VisualOptions = new("Subscription");
             Upstream = upstream;
+            this.underlyingObserver = underlyingObserver;
+            this.onSubscribe = onSubscribe;
             Upstreams = ImmutableList.Create<IInteractiveObservablePort>(Upstream);
             Upstream.SetTarget(this);
         }
@@ -46,6 +50,7 @@ namespace RxPlayground.RxInteractive
                 throw new InvalidOperationException("Already subscribed");
 
             subscription = Upstream.Subscribe(this);
+            onSubscribe?.Invoke(subscription);
         }
 
         public void Dispose()
@@ -59,10 +64,21 @@ namespace RxPlayground.RxInteractive
 
         public override string ToString() => "Subscription";
 
-        public void OnCompleted() => subscription?.Dispose();
+        public void OnCompleted()
+        {
+            underlyingObserver?.OnCompleted();
+            subscription?.Dispose();
+        }
 
-        public void OnError(Exception error) => subscription?.Dispose();
+        public void OnError(Exception error)
+        {
+            underlyingObserver?.OnError(error);
+            subscription?.Dispose();
+        }
 
-        public void OnNext(T value) { }
+        public void OnNext(T value)
+        {
+            underlyingObserver?.OnNext(value);
+        }
     }
 }
