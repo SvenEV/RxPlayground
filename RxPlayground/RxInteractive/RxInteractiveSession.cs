@@ -311,7 +311,7 @@ namespace RxPlayground.RxInteractive
                 var newNodeCreated = !graph.Nodes.ContainsKey(node.AggregateNodeId);
                 graph = graph.TryAddNode(node.AggregateNodeId, new DataFlowNode(node.VisualOptions, Vector2.Zero));
 
-                foreach (var upstreamNode in node.Upstreams)
+                foreach (var upstreamNode in node.Upstreams.OrderBy(n => n.Owner.VisualOptions.Name))
                 {
                     var result = AddRecursively(graph, upstreamNode.Owner);
                     var edgeId = new DataFlowEdgeId.StaticEdgeId(upstreamNode.Owner.AggregateNodeId, node.AggregateNodeId);

@@ -2,6 +2,7 @@
 using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace RxPlayground.RxInteractive
 {
@@ -45,23 +46,32 @@ namespace RxPlayground.RxInteractive
             observableOutput = observable;
 
             var name = varNameExpression.Replace("var ", "");
+            var code = FixIndentAndRemoveVisualizeCalls(observableExpression);
 
             return new DeclareObservableInstruction(
                 Name: name,
                 Observable: observable,
-                Code: $"var {name} = {FixIndent(observableExpression)};");
+                Code: $"var {name} = {code};");
 
-            static string FixIndent(string code)
-            {
-                var lines = code.Split("\n");
-
-                if (lines.Length == 1)
-                    return code;
-
-                var commonIndentation = lines.Skip(1).Min(line => line.TakeWhile(c => c == ' ').Count());
-                return string.Join("\n", lines.Skip(1).Select(line => "    " + line[commonIndentation..]).Prepend(lines[0]));
-            }
         }
+
+        private static string FixIndentAndRemoveVisualizeCalls(string code)
+        {
+            var lines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+                .Select(line => RemoveVisualizeCall(line))
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToList();
+
+            var commonIndentation = (lines.Count == 1) ? 0 : lines.Skip(1).Min(line => line.TakeWhile(c => c == ' ').Count());
+                
+            return string.Join("\n", lines
+                .Skip(1)
+                .Select(line => "    " + line[commonIndentation..])
+                .Prepend(lines[0]));
+        }
+
+        private static string RemoveVisualizeCall(string line) =>
+            Regex.Replace(line, "\\.Visualize\\(.*", "");
 
         public static RxInstruction Subscribe(object observable, [CallerArgumentExpression("observable")] string variable = "")
         {

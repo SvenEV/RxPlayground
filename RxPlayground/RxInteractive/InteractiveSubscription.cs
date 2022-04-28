@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
 namespace RxPlayground.RxInteractive
@@ -17,7 +16,6 @@ namespace RxPlayground.RxInteractive
     public class InteractiveSubscription<T> : IInteractiveSubscription, IObserver<T>
     {
         private readonly Subject<RxInteractiveEvent> eventsSubject = new();
-        private readonly InteractiveObserver<T> observer;
         private IDisposable? subscription;
 
         public DataFlowNodeId AggregateNodeId { get; }
@@ -28,7 +26,7 @@ namespace RxPlayground.RxInteractive
 
         public ImmutableList<IInteractiveObservablePort> Upstreams { get; }
 
-        public IObservable<RxInteractiveEvent> Events { get; }
+        public IObservable<RxInteractiveEvent> Events => eventsSubject;
 
         IInteractiveObservablePort IInteractiveSubscription.TargetPort => Upstream;
 
@@ -39,13 +37,7 @@ namespace RxPlayground.RxInteractive
             VisualOptions = new("Subscription");
             Upstream = upstream;
             Upstreams = ImmutableList.Create<IInteractiveObservablePort>(Upstream);
-
             Upstream.SetTarget(this);
-
-            var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(upstream.Owner.AggregateNodeId, AggregateNodeId, 0);
-            observer = new InteractiveObserver<T>(edgeId, this);
-
-            Events = observer.Events.Merge(eventsSubject);
         }
 
         public void Subscribe()
@@ -53,7 +45,7 @@ namespace RxPlayground.RxInteractive
             if (subscription is not null)
                 throw new InvalidOperationException("Already subscribed");
 
-            subscription = Upstream.Subscribe(observer);
+            subscription = Upstream.Subscribe(this);
         }
 
         public void Dispose()
