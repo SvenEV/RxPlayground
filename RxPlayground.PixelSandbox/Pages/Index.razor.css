@@ -1,0 +1,14 @@
+﻿main {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    position: absolute;
+    width: min(100vw, 100vh);
+    height: min(100vw, 100vh);
+    place-self: center;
+}
+
+main ::deep > * {
+    grid-row: 1;
+    grid-column: 1;
+}

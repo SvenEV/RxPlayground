@@ -1,0 +1,22 @@
+﻿@using System.Reactive.Linq
+@inject PixelService PixelService
+
+<div style="grid-template-rows: repeat(@PixelService.Height, minmax(0, 1fr)); grid-template-columns: repeat(@PixelService.Width, minmax(0, 1fr));">
+    @for (var y = 0; y < PixelService.Height; y++)
+    {
+        @for (var x = 0; x < PixelService.Width; x++)
+        {
+            <Pixel @key="(x, y)" Color="@PixelService.GetPixel(x, y)" />
+        }
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        PixelService.Events.Throttle(TimeSpan.FromMilliseconds(33)).Subscribe(_ =>
+        {
+            InvokeAsync(StateHasChanged);
+        });
+    }
+}
