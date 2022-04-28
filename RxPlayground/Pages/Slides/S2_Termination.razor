@@ -1,0 +1,45 @@
+﻿<CodeSampleSlide Title="Termination of Observables" Scenario="scenario">
+
+</CodeSampleSlide>
+
+@code {
+    private RxScenario? scenario;
+
+    private IDisposable sub1;
+    private IDisposable sub2;
+
+    protected override void OnInitialized()
+    {
+        scenario = RxScenario.Create(new[]
+        {
+            RxInstruction.DeclareObservable(out var timer,
+                Observable.Timer(TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5))
+                    .Visualize("Timer")
+            ),
+
+            RxInstruction.Blank(),
+
+            RxInstruction.DeclareObservable(out var text, timer.Select(i => "Hello Rx!".Substring((int)i))
+                .Visualize("Select")
+            ),
+
+            RxInstruction.Blank(),
+
+            RxInstruction.Subscribe(o => sub1 = o, text, value => { /* do something */ }),
+
+            RxInstruction.Blank(),
+
+            RxInstruction.DeclareObservable(out var text2, timer
+                .Take(5)
+                .Visualize("Take")
+                .Select(i => "Hello Rx!".Substring((int)i))
+                .Visualize("Select")
+            ),
+
+            RxInstruction.Blank(),
+
+            RxInstruction.Subscribe(o => sub2 = o, text2, value => { /* do something */ }),
+
+        });
+    }
+}

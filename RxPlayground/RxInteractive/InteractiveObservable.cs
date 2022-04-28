@@ -107,6 +107,8 @@ namespace RxPlayground.RxInteractive
 
     public class InteractiveObservablePort<T> : IInteractiveObservablePort<T>
     {
+        private static int NextSequenceNumber = 0;
+
         private readonly BehaviorSubject<ImmutableList<InteractiveObserver<T>>> observersSubject =
             new(ImmutableList<InteractiveObserver<T>>.Empty);
 
@@ -136,7 +138,7 @@ namespace RxPlayground.RxInteractive
 
             lock (observersSubject)
             {
-                var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(Owner.AggregateNodeId, Target.AggregateNodeId, observersSubject.Value.Count);
+                var edgeId = new DataFlowEdgeId.SubscriptionEdgeId(Owner.AggregateNodeId, Target.AggregateNodeId, Interlocked.Increment(ref NextSequenceNumber));
                 var wrappedObserver = new InteractiveObserver<T>(edgeId, observer);
 
                 eventsSubject.OnNext(new RxInteractiveEvent.Subscribed(

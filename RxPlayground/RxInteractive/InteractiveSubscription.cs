@@ -32,11 +32,10 @@ namespace RxPlayground.RxInteractive
 
         IInteractiveObservablePort IInteractiveSubscription.TargetPort => Upstream;
 
-
-        public InteractiveSubscription(IInteractiveObservablePort<T> upstream, IObserver<T>? underlyingObserver = null, Action<IDisposable>? onSubscribe = null)
+        public InteractiveSubscription(IInteractiveObservablePort<T> upstream, IObserver<T>? underlyingObserver = null, string displayName = "Subscription", Action<IDisposable>? onSubscribe = null)
         {
             AggregateNodeId = new DataFlowNodeId(this);
-            VisualOptions = new("Subscription");
+            VisualOptions = new(displayName);
             Upstream = upstream;
             this.underlyingObserver = underlyingObserver;
             this.onSubscribe = onSubscribe;

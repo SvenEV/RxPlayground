@@ -1,4 +1,4 @@
-﻿@if (Edge?.Lerp(Position) is Vector2 p)
+﻿@if (Position < 1 && Edge?.Lerp(Position) is Vector2 p)
 {
     <div class="graph-edge-token" style="@Style(p)">
         @ChildContent

@@ -11,14 +11,19 @@
 
         @foreach (var edge in state.Graph.Edges)
         {
-            @switch (edge.Value.Value)
+            @if (edge.Value.Value is DataFlowEdge.StaticEdge staticEdge)
             {
-                case DataFlowEdge.StaticEdge staticEdge:
-                    <GraphEdge Id="edge.Key" @key="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" Color="#eee" Width="25" />
-                    break;
+                var i = 0;
 
-                case DataFlowEdge.SubscriptionEdge subscriptionEdge:
-                    <GraphEdge Id="edge.Key" @key="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" ZIndex="1" Offset="((DataFlowEdgeId.SubscriptionEdgeId)edge.Key).VisualOffset">
+                <GraphEdge Id="edge.Key" @key="edge.Key" Source="edge.Value.Source" Target="edge.Value.Target" Color="#eee" Width="25" />
+
+                @foreach (var subEdge in state.Graph.Edges
+               .Where(e => e.Key is DataFlowEdgeId.SubscriptionEdgeId subEdgeId && subEdgeId.SourceId == edge.Value.Source && subEdgeId.TargetId == edge.Value.Target)
+               .OrderBy(e => ((DataFlowEdgeId.SubscriptionEdgeId)e.Key).SequenceNumber))
+                {
+                    var subscriptionEdge = (DataFlowEdge.SubscriptionEdge)subEdge.Value.Value;
+
+                    <GraphEdge Id="subEdge.Key" @key="subEdge.Key" Source="subEdge.Value.Source" Target="subEdge.Value.Target" ZIndex="1" Offset="(i % 2 * 2 - 1) * ((float)i / 2) * 20">
                         @foreach (var emission in subscriptionEdge.Emissions)
                         {
                             <GraphEdgeToken Position="(float)((state.Timestamp - emission.Timestamp).TotalSeconds / RxInteractiveSession.TimelineLength.TotalSeconds)">
@@ -39,7 +44,9 @@
                             </GraphEdgeToken>
                         }
                     </GraphEdge>
-                    break;
+
+                    i++;
+                }
             }
         }
     </GraphView>
@@ -74,7 +81,15 @@
             {
                 state = newState;
                 if (graphView is not null && isZoomToFitEnabled)
-                    await graphView.ZoomToFitAsync();
+                {
+                    try
+                    {
+                        await graphView.ZoomToFitAsync();
+                    }
+                    catch
+                    {
+                    }
+                }
                 await InvokeAsync(StateHasChanged);
             });
         }

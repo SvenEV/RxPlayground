@@ -1,11 +1,11 @@
 ﻿.graph-edge-token {
-    width: 12px;
-    height: 12px;
-    border-radius: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
     background: rgb(255, 216, 0);
     position: absolute;
     transform: translate(-50%, -50%);
-    font-size: 8pt;
+    font-size: 10pt;
 
     display: grid;
     place-content: center;

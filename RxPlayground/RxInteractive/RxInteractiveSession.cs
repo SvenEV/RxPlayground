@@ -174,7 +174,7 @@ namespace RxPlayground.RxInteractive
             }
         }
 
-        public void DeclareSubscription(object observable, object observer, Action<IDisposable> onSubscribed)
+        public void DeclareSubscription(object observable, object observer, string observerName, Action<IDisposable> onSubscribed)
         {
             var observableInstrumented = Introspection.InjectInspector(observable, this);
 
@@ -191,6 +191,7 @@ namespace RxPlayground.RxInteractive
                 typeof(InteractiveSubscription<>).MakeGenericType(observableElementType),
                 observableInstrumented.Upstreams[0],
                 observer,
+                observerName,
                 onSubscribed)!;
 
             HandleEvent(new Timestamped<RxInteractiveEvent>(

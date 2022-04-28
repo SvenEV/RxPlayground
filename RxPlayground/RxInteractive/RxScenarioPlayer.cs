@@ -37,8 +37,9 @@ namespace RxPlayground.RxInteractive
     public abstract record RxInstruction(string Code)
     {
         public record DeclareObservableInstruction(string Name, object Observable, string Code) : RxInstruction(Code);
-        public record SubscribeInstruction(object Observable, object Observer, Action<IDisposable> OnSubscribed, string Code) : RxInstruction(Code);
+        public record SubscribeInstruction(object Observable, object Observer, string ObserverName, Action<IDisposable> OnSubscribed, string Code) : RxInstruction(Code);
         public record UnsubscribeInstruction(Func<IDisposable> GetSubscription, string Code) : RxInstruction(Code);
+        public record BlankLine() : RxInstruction("");
 
         public static RxInstruction DeclareObservable<T>(out T observableOutput, T observable,
             [CallerArgumentExpression("observableOutput")] string varNameExpression = "",
@@ -89,6 +90,7 @@ namespace RxPlayground.RxInteractive
             return new SubscribeInstruction(
                 observable,
                 observer,
+                subscriptionVarName,
                 onSubscribed,
                 $"var {subscriptionVarName} = {observableVarName}.Subscribe({onNextExpression});");
         }
@@ -98,6 +100,9 @@ namespace RxPlayground.RxInteractive
             var subscriptionVarName = Regex.Replace(getSubscriptionExpression, "^.*=>\\s*", "");
             return new UnsubscribeInstruction(getSubscription, $"{subscriptionVarName}.Dispose();");
         }
+
+        public static RxInstruction Blank() =>
+            new RxInstruction.BlankLine();
     }
 
     public class RxScenarioPlayer : IDisposable
@@ -124,6 +129,8 @@ namespace RxPlayground.RxInteractive
 
         public bool TryStep()
         {
+            RxInstructionWithLineNumber? nextInstruction;
+
             lock (stateLock)
             {
                 var state = stateSubject.Value;
@@ -134,7 +141,7 @@ namespace RxPlayground.RxInteractive
                 var instruction = Scenario.Instructions[state.InstructionPointer];
                 ExecuteInstruction(instruction.Instruction);
 
-                var nextInstruction = (state.InstructionPointer + 1) < Scenario.Instructions.Count
+                nextInstruction = (state.InstructionPointer + 1) < Scenario.Instructions.Count
                     ? Scenario.Instructions[state.InstructionPointer + 1]
                     : null;
 
@@ -144,8 +151,12 @@ namespace RxPlayground.RxInteractive
                     NextInstruction = nextInstruction
                 });
 
-                return true;
             }
+
+            if (nextInstruction?.Instruction is RxInstruction.BlankLine)
+                TryStep();
+
+            return true;
         }
 
         public void RunToEnd()
@@ -162,11 +173,14 @@ namespace RxPlayground.RxInteractive
                     break;
 
                 case RxInstruction.SubscribeInstruction instr2:
-                    Session.DeclareSubscription(instr2.Observable, instr2.Observer, instr2.OnSubscribed);
+                    Session.DeclareSubscription(instr2.Observable, instr2.Observer, instr2.ObserverName, instr2.OnSubscribed);
                     break;
 
                 case RxInstruction.UnsubscribeInstruction instr3:
                     instr3.GetSubscription().Dispose();
+                    break;
+
+                case RxInstruction.BlankLine:
                     break;
             }
         }

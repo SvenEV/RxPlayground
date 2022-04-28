@@ -1,0 +1,40 @@
+﻿<CodeSampleSlide Title="Observables, Subscriptions & Basic Composition" Scenario="scenario">
+
+</CodeSampleSlide>
+
+@code {
+    private RxScenario? scenario;
+
+    private IDisposable sub1;
+    private IDisposable sub2;
+    private IDisposable sub3;
+
+    protected override void OnInitialized()
+    {
+        scenario = RxScenario.Create(new[]
+        {
+            RxInstruction.DeclareObservable(out var timer,
+                Observable.Timer(TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5))
+                    .Visualize("Timer")
+            ),
+
+            RxInstruction.Subscribe(o => sub1 = o, timer, value => { /* do something */ }),
+
+            RxInstruction.Blank(),
+
+            RxInstruction.DeclareObservable(out var doubled, timer.Select(x => 2 * x)
+                .Visualize("Select")
+            ),
+
+            RxInstruction.Subscribe(o => sub2 = o, doubled, value => { /* do something */ }),
+            
+            RxInstruction.Subscribe(o => sub3 = o, doubled, value => { /* do something */ }),
+
+            RxInstruction.Blank(),
+
+            RxInstruction.Unsubscribe(() => sub1),
+            RxInstruction.Unsubscribe(() => sub2),
+            RxInstruction.Unsubscribe(() => sub3)
+        });
+    }
+}
