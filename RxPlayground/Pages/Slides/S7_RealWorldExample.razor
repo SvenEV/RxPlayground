@@ -1,0 +1,117 @@
+﻿@using System.Reactive.Threading.Tasks
+@using System.Collections.Immutable
+
+<CodeSampleSlide Title="Real World Example" Scenario="scenario">
+    <UI>
+        <div class="dialog" style="overflow: auto; height: 100%;">
+            <EditForm Model="this">
+                <p class="title">Clone GitHub Repository</p>
+
+                <label>
+                    Repository:<br />
+                    <input @bind="searchString" @bind:event="oninput">
+                </label>
+
+                <ul>
+                    @foreach (var repoName in repoNameSuggestions)
+                    {
+                        <li>@repoName <button @onclick="() => selectedRepoSubject.OnNext(repoName)">Select</button></li>
+                    }
+                </ul>
+
+                <label>
+                    Folder path:<br />
+                    <input @bind="folderPath" @bind:event="oninput">
+                </label>
+
+                <br />
+
+                <span style="color: red">
+                    @foreach (var issue in validationIssues)
+                    {
+                        <span>@issue</span><br />
+                    }
+                </span>
+
+                <button disabled="@(validationIssues.Count > 0)">Clone</button>
+            </EditForm>
+        </div>
+    </UI>
+</CodeSampleSlide>
+
+
+@code {
+    private RxScenario? scenario;
+
+    private string searchString
+    {
+        get => searchStringSubject.Value;
+        set => searchStringSubject.OnNext(value);
+    }
+
+    private string folderPath
+    {
+        get => folderPathSubject.Value;
+        set => folderPathSubject.OnNext(value);
+    }
+
+    private BehaviorSubject<string> searchStringSubject = new("");
+    private BehaviorSubject<string> folderPathSubject = new("C:\\source\\repos");
+    private BehaviorSubject<string> selectedRepoSubject = new("");
+
+    private ImmutableList<string> repoNameSuggestions = ImmutableList<string>.Empty;
+    private ImmutableList<string> validationIssues = ImmutableList<string>.Empty;
+
+    protected override void OnInitialized()
+    {
+        scenario = RxScenario.Create(new[]
+        {
+            RxInstruction.Blank()
+    });
+
+        var searchResults = searchStringSubject
+            .Throttle(TimeSpan.FromSeconds(1))
+            .Select(str => SearchRepositoriesAsync(str).ToObservable())
+            .Switch();
+
+        searchResults.Subscribe(repoNames =>
+        {
+            this.repoNameSuggestions = repoNames;
+            InvokeAsync(StateHasChanged);
+        });
+
+        var validationIssues = Observable.CombineLatest(selectedRepoSubject, folderPathSubject, (selectedRepo, folderPath) =>
+        {
+            var issues = new List<string>();
+            if (string.IsNullOrEmpty(selectedRepo))
+                issues.Add("No repository is selected");
+            if (!Directory.Exists(folderPath))
+                issues.Add("The specified folder does not exist");
+            return issues.ToImmutableList();
+        });
+
+        validationIssues.Subscribe(list =>
+        {
+            this.validationIssues = list;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private async Task<ImmutableList<string>> SearchRepositoriesAsync(string searchString)
+    {
+        var http = new HttpClient();
+        http.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("request", null));
+        try
+        {
+            var result = await http.GetFromJsonAsync<RepositorySearchResult>("https://api.github.com/search/repositories?q=" + searchString);
+            return result.items.Take(5).Select(repo => repo.full_name).ToImmutableList();
+        }
+        catch (Exception )
+        {
+            return ImmutableList<string>.Empty;
+        }
+    }
+
+    record RepositorySearchResult(Repository[] items);
+    record Repository(string full_name);
+}
