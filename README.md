@@ -6,6 +6,6 @@ Requires the [.NET 6 SDK](https://dotnet.microsoft.com/en-us/download) and an ID
 
 ---
 
-<center>
+<p align="center">
     <img src="RxPlayground/wwwroot/img/slides/CodingMates.png" width="200" />
-</center>
+</p>

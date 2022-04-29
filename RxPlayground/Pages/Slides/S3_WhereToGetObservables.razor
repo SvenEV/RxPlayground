@@ -1,0 +1,28 @@
+﻿<ContentSlide Title="Where to Get Observables From?">
+    <p>
+        <b>Factory functions</b><br />
+        <code>Observable.Return(value)</code><br />
+        <code>Observable.Empty()</code><br />
+        <code>Observable.Defer()</code><br />
+        <code>Observable.Timer(...)</code><br />
+        <code>Observable.Create(observer => { ... })</code>
+    </p>
+    <p>
+        <b>LINQ-style operators</b><br />
+        <code>observable<br />&nbsp;&nbsp;&nbsp;&nbsp;.Where(...)<br />&nbsp;&nbsp;&nbsp;&nbsp;.Select(...)<br />&nbsp;&nbsp;&nbsp;&nbsp;.Scan(...)</code>
+    </p>
+    <p>
+        <b>Conversion from other data streams</b><br />
+        <code>IEnumerable&lt;T&gt;</code> and <code>Task&lt;T&gt;</code> can be turned into observables via <code>ToObservable()</code>
+    </p>
+    <p>
+        <b>Subjects</b><br />
+        <code>interface ISubject&lt;T&gt; : IObservable&lt;T&gt;, IObserver&lt;T&gt;</code><br />
+        Use subjects to manually emit data values whenever you need.
+        <ul>
+            <li><code>Subject&lt;T&gt;</code>: Observers receive all values that are emitted after they subscribe</li>
+            <li><code>BehaviorSubject&lt;T&gt;</code>: Observers receive the last emitted value when they subscribe and all future values</li>
+            <li><code>ReplaySubject&lt;T&gt;</code>: Observers receive all past values when they subscribe and all future values</li>
+        </ul>
+    </p>
+</ContentSlide>

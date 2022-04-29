@@ -59,6 +59,12 @@ namespace RxPlayground.RxInteractive
                     case "System.Reactive.Subjects.Subject<T>":
                         return new InjectInspectorResult(observable, ImmutableList<IInteractiveObservablePort>.Empty);
 
+                    case "System.Reactive.Subjects.BehaviorSubject<T>":
+                        return new InjectInspectorResult(observable, ImmutableList<IInteractiveObservablePort>.Empty);
+
+                    case "System.Reactive.Subjects.ReplaySubject<T>":
+                        return new InjectInspectorResult(observable, ImmutableList<IInteractiveObservablePort>.Empty);
+
                     case "System.Reactive.Subjects.ConnectableObservable<TSource, TResult>":
                         {
                             var source = type.GetAllPrivateFields()

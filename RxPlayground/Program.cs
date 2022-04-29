@@ -1,4 +1,6 @@
 using RxPlayground.Lib;
+using System.Reactive;
+using System.Reactive.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 

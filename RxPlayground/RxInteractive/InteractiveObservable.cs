@@ -145,13 +145,14 @@ namespace RxPlayground.RxInteractive
                     EdgeId: edgeId,
                     Observer: wrappedObserver));
 
-                var subscription = Owner.UnderlyingObservable.Subscribe(wrappedObserver);
-
                 observersSubject.OnNext(observersSubject.Value.Add(wrappedObserver));
+
+                var subscription = Owner.UnderlyingObservable.Subscribe(wrappedObserver);
 
                 return Disposable.Create(() =>
                 {
                     subscription.Dispose();
+                    wrappedObserver.Dispose();
 
                     eventsSubject.OnNext(new RxInteractiveEvent.Unsubscribed(EdgeId: edgeId));
 

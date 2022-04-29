@@ -76,23 +76,32 @@ namespace RxPlayground.RxInteractive
         }
 
         public static RxInstruction Subscribe<T>(
-            Action<IDisposable> onSubscribed,
+            Action<IDisposable>? onSubscribed,
             IObservable<T> observable,
-            Action<T> onNext,
+            Action<T>? onNext = null,
             [CallerArgumentExpression("onSubscribed")] string onSubscribedExpression = "",
             [CallerArgumentExpression("observable")] string observableVarName = "",
             [CallerArgumentExpression("onNext")] string onNextExpression = "")
         {
-            var observer = Observer.Create(onNext, _ => { }, () => { });
+            var observer = Observer.Create(onNext ?? (_ => { }), _ => { }, () => { });
 
-            var subscriptionVarName = Regex.Replace(onSubscribedExpression, "^.*=>\\s*(\\w+)\\s*=\\s*.*$", "$1").Trim();
+            if (onNext == null)
+                onNextExpression = "x => { /* do something */ }";
+
+            var subscriptionVarName = (onSubscribed is null)
+                ? "Subscription"
+                : Regex.Replace(onSubscribedExpression, "^.*=>\\s*(\\w+)\\s*=\\s*.*$", "$1").Trim();
+
+            var code = (onSubscribed is null)
+                ? $"{observableVarName}.Subscribe({onNextExpression});"
+                : $"var {subscriptionVarName} = {observableVarName}.Subscribe({onNextExpression});";
 
             return new SubscribeInstruction(
                 observable,
                 observer,
                 subscriptionVarName,
-                onSubscribed,
-                $"var {subscriptionVarName} = {observableVarName}.Subscribe({onNextExpression});");
+                onSubscribed ?? (_ => { }),
+                code);
         }
 
         public static RxInstruction Unsubscribe(Func<IDisposable> getSubscription, [CallerArgumentExpression("getSubscription")] string getSubscriptionExpression = "")

@@ -1,0 +1,48 @@
+﻿<CodeSampleSlide Title="Subjects" Scenario="scenario">
+    <UI>
+        <button @onclick="OnNext">OnNext</button>
+    </UI>
+</CodeSampleSlide>
+
+@code {
+    private RxScenario? scenario;
+    private int i = 0;
+
+    private ISubject<int>? subject;
+    private ISubject<int>? behaviorSubject;
+    private ISubject<int>? replaySubject;
+
+    protected override void OnInitialized()
+    {
+        scenario = RxScenario.Create(new[]
+        {
+            RxInstruction.DeclareObservable(out subject, new Subject<int>()
+                .Visualize("Subject")
+            ),
+
+            RxInstruction.DeclareObservable(out behaviorSubject, new BehaviorSubject<int>(99)
+                .Visualize("BehaviorSubject")
+            ),
+
+            RxInstruction.DeclareObservable(out replaySubject, new ReplaySubject<int>()
+                .Visualize("ReplaySubject")
+            ),
+
+            RxInstruction.Blank(),
+            RxInstruction.Subscribe(null, subject),
+            RxInstruction.Subscribe(null, behaviorSubject),
+            RxInstruction.Subscribe(null, replaySubject),
+            RxInstruction.Blank(),
+            RxInstruction.Subscribe(null, behaviorSubject),
+            RxInstruction.Subscribe(null, replaySubject),
+        });
+    }
+
+    private void OnNext()
+    {
+        i++;
+        subject?.OnNext(i);
+        behaviorSubject?.OnNext(i);
+        replaySubject?.OnNext(i);
+    }
+}
