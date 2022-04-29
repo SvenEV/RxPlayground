@@ -1,0 +1,10 @@
+﻿.dialog {
+    margin: 6px;
+    padding: 12px;
+    border-radius: 4px;
+    box-shadow: 1px 1px 4px black;
+}
+
+.title {
+    font-weight: bold;
+}

@@ -3,38 +3,46 @@
 
 <CodeSampleSlide Title="Real World Example" Scenario="scenario">
     <UI>
-        <div class="dialog" style="overflow: auto; height: 100%;">
-            <EditForm Model="this">
-                <p class="title">Clone GitHub Repository</p>
+        <div style="overflow: auto; height: 100%;">
+            <div class="dialog">
+                <EditForm Model="this">
+                    <p class="title">Clone GitHub Repository</p>
 
-                <label>
-                    Repository:<br />
-                    <input @bind="searchString" @bind:event="oninput">
-                </label>
+                    <label>
+                        Repository:<br />
+                        <span>"@selectedRepoSubject.Value"</span><br />
+                        <input @bind="searchString" @bind:event="oninput" placeholder="Search...">
+                    </label>
 
-                <ul>
-                    @foreach (var repoName in repoNameSuggestions)
-                    {
-                        <li>@repoName <button @onclick="() => selectedRepoSubject.OnNext(repoName)">Select</button></li>
-                    }
-                </ul>
+                    <ul>
+                        @foreach (var repoName in repoNameSuggestions)
+                        {
+                            <li>@repoName <button @onclick="() => selectedRepoSubject.OnNext(repoName)">Select</button></li>
+                        }
+                    </ul>
 
-                <label>
-                    Folder path:<br />
-                    <input @bind="folderPath" @bind:event="oninput">
-                </label>
+                    <label>
+                        Folder path:<br />
+                        <input @bind="folderPath" @bind:event="oninput">
+                    </label>
 
-                <br />
+                    <br />
+                    <br />
 
-                <span style="color: red">
-                    @foreach (var issue in validationIssues)
-                    {
-                        <span>@issue</span><br />
-                    }
-                </span>
+                    <span style="color: red">
+                        @foreach (var issue in validationIssues)
+                        {
+                            <span>@issue</span>
 
-                <button disabled="@(validationIssues.Count > 0)">Clone</button>
-            </EditForm>
+                            <br />
+                        }
+                    </span>
+
+                    <div style="text-align: right;">
+                        <button disabled="@(validationIssues.Count > 0)">Clone</button>
+                    </div>
+                </EditForm>
+            </div>
         </div>
     </UI>
 </CodeSampleSlide>
@@ -66,27 +74,32 @@
     {
         scenario = RxScenario.Create(new[]
         {
+            RxInstruction.DeclareObservable(out var searchResults, searchStringSubject
+                .Visualize("searchStringSubject")
+                .Throttle(TimeSpan.FromSeconds(1))
+                .Visualize("Throttle")
+                .Select(str => SearchRepositoriesAsync(str).ToObservable())
+                .Visualize("Select")
+                .Switch()
+                .Visualize("Switch")
+            ),
+
+            RxInstruction.Subscribe(null, searchResults, repoNames =>
+{
+    this.repoNameSuggestions = repoNames;
+    InvokeAsync(StateHasChanged);
+}),
+
             RxInstruction.Blank()
     });
-
-        var searchResults = searchStringSubject
-            .Throttle(TimeSpan.FromSeconds(1))
-            .Select(str => SearchRepositoriesAsync(str).ToObservable())
-            .Switch();
-
-        searchResults.Subscribe(repoNames =>
-        {
-            this.repoNameSuggestions = repoNames;
-            InvokeAsync(StateHasChanged);
-        });
 
         var validationIssues = Observable.CombineLatest(selectedRepoSubject, folderPathSubject, (selectedRepo, folderPath) =>
         {
             var issues = new List<string>();
             if (string.IsNullOrEmpty(selectedRepo))
-                issues.Add("No repository is selected");
+                issues.Add("No repository is selected.");
             if (!Directory.Exists(folderPath))
-                issues.Add("The specified folder does not exist");
+                issues.Add("The specified folder does not exist.");
             return issues.ToImmutableList();
         });
 
@@ -104,9 +117,9 @@
         try
         {
             var result = await http.GetFromJsonAsync<RepositorySearchResult>("https://api.github.com/search/repositories?q=" + searchString);
-            return result.items.Take(5).Select(repo => repo.full_name).ToImmutableList();
+            return result.items.Take(3).Select(repo => repo.full_name).ToImmutableList();
         }
-        catch (Exception )
+        catch (Exception)
         {
             return ImmutableList<string>.Empty;
         }
