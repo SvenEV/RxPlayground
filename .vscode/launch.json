@@ -1,0 +1,83 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // Use IntelliSense to find out which attributes exist for C# debugging
+            // Use hover for the description of the existing attributes
+            // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
+            "name": "Launch RxPlayground",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "Build RxPlayground",
+            // If you have changed target frameworks, make sure to update the program path.
+            "program": "${workspaceFolder}/RxPlayground/bin/Debug/net6.0/RxPlayground.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/RxPlayground",
+            "stopAtEntry": false,
+            // Enable launching a web browser when ASP.NET Core starts. For more information: https://aka.ms/VSCode-CS-LaunchJson-WebBrowser
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "logging": {
+                "moduleLoad": false,
+                "threadExit": false
+            }
+        },
+        {
+            // Use IntelliSense to find out which attributes exist for C# debugging
+            // Use hover for the description of the existing attributes
+            // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
+            "name": "Launch PixelSandbox",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "Build PixelSandbox",
+            // If you have changed target frameworks, make sure to update the program path.
+            "program": "${workspaceFolder}/RxPlayground.PixelSandbox/bin/Debug/net6.0/RxPlayground.PixelSandbox.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/RxPlayground.PixelSandbox",
+            "stopAtEntry": false,
+            // Enable launching a web browser when ASP.NET Core starts. For more information: https://aka.ms/VSCode-CS-LaunchJson-WebBrowser
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "logging": {
+                "moduleLoad": false,
+                "threadExit": false
+            }
+        },
+        {
+            // Use IntelliSense to find out which attributes exist for C# debugging
+            // Use hover for the description of the existing attributes
+            // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
+            "name": "Launch PixelSandbox.Client",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "Build PixelSandbox.Client",
+            // If you have changed target frameworks, make sure to update the program path.
+            "program": "${workspaceFolder}/RxPlayground.PixelSandbox.Client/bin/Debug/net6.0/RxPlayground.PixelSandbox.Client.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/RxPlayground.PixelSandbox.Client",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "logging": {
+                "moduleLoad": false,
+                "threadExit": false,
+            }
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach"
+        }
+    ]
+}
