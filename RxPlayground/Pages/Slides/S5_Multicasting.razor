@@ -1,0 +1,60 @@
+﻿<CodeSampleSlide Title="Sharing is Caring – Multicast Observables" Scenario="scenario">
+
+</CodeSampleSlide>
+
+
+@code {
+    private RxScenario? scenario;
+
+    private IDisposable? rc1;
+    private IDisposable? rc2;
+    private IDisposable? rc3;
+
+    private IDisposable? ac1;
+    private IDisposable? ac2;
+    private IDisposable? ac3;
+    private IDisposable? ac4;
+
+    protected override void OnInitialized()
+    {
+        scenario = RxScenario.Create(new[]
+        {
+            RxInstruction.DeclareObservable(out var timer, Observable.Timer(TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5))
+                .Visualize("Timer")
+            ),
+
+            RxInstruction.Blank(),
+
+            RxInstruction.DeclareObservable(out var refCounted, timer
+                .Publish()
+                .Visualize("Publish")
+                .RefCount()
+                .Visualize("RefCount")
+            ),
+
+            RxInstruction.DeclareObservable(out var autoConnected, timer
+                .Publish()
+                .Visualize("Publish")
+                .AutoConnect()
+                .Visualize("AutoConnect")
+            ),
+
+            RxInstruction.Blank(),
+            RxInstruction.Subscribe(o => rc1 = o, refCounted),
+            RxInstruction.Subscribe(o => rc2 = o, refCounted),
+            RxInstruction.Subscribe(o => rc3 = o, refCounted),
+            RxInstruction.Unsubscribe(() => rc1),
+            RxInstruction.Unsubscribe(() => rc2),
+            RxInstruction.Unsubscribe(() => rc3),
+
+            RxInstruction.Blank(),
+            RxInstruction.Subscribe(o => ac1 = o, autoConnected),
+            RxInstruction.Subscribe(o => ac2 = o, autoConnected),
+            RxInstruction.Subscribe(o => ac3 = o, autoConnected),
+            RxInstruction.Unsubscribe(() => ac1),
+            RxInstruction.Unsubscribe(() => ac2),
+            RxInstruction.Unsubscribe(() => ac3),
+            RxInstruction.Subscribe(o => ac4 = o, autoConnected),
+        });
+    }
+}

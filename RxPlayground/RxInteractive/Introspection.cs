@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Immutable;
+using System.Reflection;
 
 namespace RxPlayground.RxInteractive
 {
@@ -78,7 +79,7 @@ namespace RxPlayground.RxInteractive
                             var sourceInstrumented = InjectInspector(source, cache);
 
                             return new InjectInspectorResult(
-                                Instantiate(type, new { source = sourceInstrumented.ObservableRaw, subject = subject }),
+                                Instantiate(type, new { source = sourceInstrumented.ObservableRaw, subject }),
                                 sourceInstrumented.Upstreams);
                         }
 
@@ -95,7 +96,28 @@ namespace RxPlayground.RxInteractive
                             var sourceInstrumented = InjectInspector(source, cache);
 
                             return new InjectInspectorResult(
-                                Instantiate(type, new { source = sourceInstrumented.ObservableRaw, minObservers = minObservers }),
+                                Instantiate(type, new { source = sourceInstrumented.ObservableRaw, minObservers }),
+                                sourceInstrumented.Upstreams);
+                        }
+
+                    case "System.Reactive.Linq.ObservableImpl.AutoConnect<T>":
+                        {
+                            var source = type.GetAllPrivateFields()
+                                .Single(f => f.Name == "_source")
+                                .GetValue(observable)!;
+
+                            var minObservers = type.GetAllPrivateFields()
+                                .Single(f => f.Name == "_minObservers")
+                                .GetValue(observable)!;
+
+                            var onConnect = type.GetAllPrivateFields()
+                                .Single(f => f.Name == "_onConnect")
+                                .GetValue(observable)!;
+
+                            var sourceInstrumented = InjectInspector(source, cache);
+
+                            return new InjectInspectorResult(
+                                Instantiate(type, new { source = sourceInstrumented.ObservableRaw, minObservers, onConnect }),
                                 sourceInstrumented.Upstreams);
                         }
 
@@ -192,7 +214,7 @@ namespace RxPlayground.RxInteractive
         {
             var props = args.GetType().GetProperties().ToImmutableDictionary(prop => prop.Name, prop => prop.GetValue(args));
 
-            var constructor = type.GetConstructors()
+            var constructor = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .FirstOrDefault(ctor => ctor.GetParameters().Select(para => para.Name).OrderBy(s => s).SequenceEqual(props.Keys.OrderBy(s => s)))
                 ?? throw new ArgumentException($"Constructor not found: '{type.Name}({string.Join(", ", props.Keys)})'");
 
